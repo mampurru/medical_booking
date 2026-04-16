@@ -9,8 +9,13 @@ Sistema de gestión de citas médicas con React + Node.js + MySQL
 - npm o yarn
 
 ## esto es para cuando esten ya en el proyecto en su maquinas
-cd frontend ,luego npm start inician el front
-cd backend ,luego npm run dev
+# Para iniciar el frontend (Create React App):
+cd frontend
+npm start
+
+# Para iniciar el backend:
+cd backend
+npm run dev
 
 ## 🚀 Instalación
 ### 1. Clonar el repositorio

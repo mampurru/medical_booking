@@ -5,8 +5,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 // Importar páginas
 import Login from './pages/Login';
 import PatientDash from './pages/PatientDash';
-import DoctorDash from './pages/DoctorDash';  // Lo crearemos después
-import AdminDash from './pages/AdminDash';    // Lo crearemos después
+import DoctorDash from './pages/DoctorDash';  
+import AdminDash from './pages/AdminDash';    
 import Register from './pages/Register';
 
 // Componente de navegación (lo crearemos en el Paso 2)

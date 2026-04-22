@@ -7,6 +7,8 @@ require('dotenv').config();
 const { testConnection } = require('./src/config/db');
 const routes = require('./src/routes');
 const errorHandler = require('./src/middleware/error');
+const cron = require('node-cron');
+const { sendReminders } = require('./src/services/reminderService');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -71,6 +73,13 @@ const startServer = async () => {
     app.listen(PORT, () => {
       console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
       console.log(`📝 Modo: ${process.env.NODE_ENV || 'development'}`);
+      // Configurar Cron Job para recordatorios (cada 15 minutos)
+      cron.schedule('*/15 * * * *', () => {
+        console.log('⏰ Ejecutando cron job de recordatorios...');
+        sendReminders();
+      });
+
+      console.log('✅ Cron job de recordatorios configurado (cada 15 minutos)');
     });
   } catch (error) {
     console.error('❌ Error al iniciar el servidor:', error);

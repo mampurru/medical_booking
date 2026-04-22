@@ -1,5 +1,5 @@
 const { pool } = require('../config/db');
-
+const { createCalendarEvent } = require('../services/googleCalendarService');
 // Obtener todas las citas (con filtros)
 exports.getAppointments = async (req, res) => {
   const { doctor_id, patient_id, status, start_date, end_date } = req.query;
@@ -233,6 +233,21 @@ exports.createAppointment = async (req, res) => {
        )`,
       [doctor_id, end_time, start_time, end_time, start_time, start_time, end_time]
     );
+      // Obtener la cita creada con datos completos
+    const [newAppointment] = await pool.query(
+      `SELECT 
+        a.*, 
+        CONCAT(u.first_name, ' ', u.last_name) as patient_name,
+        CONCAT(du.first_name, ' ', du.last_name) as doctor_name,
+        doc.specialty
+       FROM appointments a
+       JOIN patients p ON a.patient_id = p.id
+       JOIN users u ON p.user_id = u.id
+       JOIN doctors doc ON a.doctor_id = doc.id
+       JOIN doctors d ON a.doctor_id = d.id
+       WHERE a.id = ?`,
+      [result.insertId]
+    );
 
     if (conflicts[0].count > 0) {
       return res.status(409).json({ 
@@ -273,6 +288,17 @@ exports.createAppointment = async (req, res) => {
        WHERE a.id = ?`,
       [result.insertId]
     );
+
+    // === INTEGRACIÓN GOOGLE CALENDAR ===
+    // Llamamos a la función para crear el evento (sin await para no bloquear)
+    createCalendarEvent({
+      patient_name: newAppointment[0].patient_name,
+      start_time: newAppointment[0].start_time,
+      end_time: newAppointment[0].end_time,
+      reason: newAppointment[0].reason,
+      doctor_id: newAppointment[0].doctor_id
+    }).catch(err => console.error("❌ Error en Google Calendar:", err));
+    // ====================================
 
     res.status(201).json({
       success: true,

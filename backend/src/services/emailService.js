@@ -64,5 +64,56 @@ const sendAppointmentReminder = async (appointment, patientEmail, patientName) =
     return false;
   }
 };
+/**
+ * Enviar recordatorio de 2 horas antes
+ */
+const sendTwoHourReminder = async (appointment, patientEmail, patientName) => {
+  const date = new Date(appointment.start_time);
+  const formattedDate = date.toLocaleDateString('es-ES', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+  const formattedTime = date.toLocaleTimeString('es-ES', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
 
-module.exports = { sendAppointmentReminder };
+  const msg = {
+    to: patientEmail,
+    from: {
+      email: process.env.SENDGRID_FROM_EMAIL,
+      name: process.env.SENDGRID_FROM_NAME || 'Medical Booking'
+    },
+    subject: `⏰ ÚLTIMO RECORDATORIO - Cita en 2 horas`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #dc2626;">Hola, ${patientName}</h2>
+        <p style="font-size: 16px; font-weight: bold;">Tu cita es HOY en 2 horas:</p>
+        
+        <div style="background-color: #fef2f2; border: 2px solid #dc2626; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p><strong>📅 Fecha:</strong> ${formattedDate}</p>
+          <p><strong>⏰ Hora:</strong> ${formattedTime}</p>
+          <p><strong>👨‍️ Doctor ID:</strong> ${appointment.doctor_id}</p>
+          <p><strong>📝 Motivo:</strong> ${appointment.reason || 'Consulta general'}</p>
+        </div>
+
+        <p style="color: #dc2626; font-size: 16px; font-weight: bold;">
+          ⚠️ Por favor prepara tu documentación y llega 15 minutos antes.
+        </p>
+      </div>
+    `
+  };
+
+  try {
+    await sgMail.send(msg);
+    console.log(`✅ Email 2h enviado a ${patientEmail} para cita ID ${appointment.id}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error enviando email 2h:', error.message);
+    return false;
+  }
+};
+
+module.exports = { sendAppointmentReminder , sendTwoHourReminder};

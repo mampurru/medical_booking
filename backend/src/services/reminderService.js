@@ -12,9 +12,7 @@ const sendReminders = async () => {
     const now = new Date();
     
     // ===== RECORDATORIO 24 HORAS =====
-    const tomorrowSameTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    const tomorrowPlus15min = new Date(tomorrowSameTime.getTime() + 15 * 60 * 1000);
-    
+    // Busca citas entre 23 y 25 horas (ventana de 2 horas alrededor de 24h)
     const [appointments24h] = await pool.query(`
       SELECT 
         a.id, a.start_time, a.reason, a.doctor_id, a.reminder_24h_sent,
@@ -25,10 +23,11 @@ const sendReminders = async () => {
       INNER JOIN patients p ON a.patient_id = p.id
       INNER JOIN users u ON p.user_id = u.id
       WHERE 
-        a.start_time BETWEEN ? AND ?
+        a.start_time > NOW()
+        AND TIMESTAMPDIFF(HOUR, NOW(), a.start_time) BETWEEN 23 AND 25
         AND a.status = 'scheduled'
         AND a.reminder_24h_sent = 0
-    `, [tomorrowSameTime, tomorrowPlus15min]);
+    `);
 
     console.log(`📋 [24H] Encontradas ${appointments24h.length} citas para recordatorio 24h`);
 
@@ -48,9 +47,7 @@ const sendReminders = async () => {
     }
 
     // ===== RECORDATORIO 2 HORAS =====
-    const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-    const twoHoursPlus15min = new Date(twoHoursLater.getTime() + 15 * 60 * 1000);
-    
+    // Busca citas entre 1.5 y 3 horas (ventana de 1.5 horas alrededor de 2h)
     const [appointments2h] = await pool.query(`
       SELECT 
         a.id, a.start_time, a.reason, a.doctor_id, a.reminder_2h_sent,
@@ -61,10 +58,11 @@ const sendReminders = async () => {
       INNER JOIN patients p ON a.patient_id = p.id
       INNER JOIN users u ON p.user_id = u.id
       WHERE 
-        a.start_time BETWEEN ? AND ?
+        a.start_time > NOW()
+        AND TIMESTAMPDIFF(HOUR, NOW(), a.start_time) BETWEEN 1.5 AND 3
         AND a.status = 'scheduled'
         AND a.reminder_2h_sent = 0
-    `, [twoHoursLater, twoHoursPlus15min]);
+    `);
 
     console.log(`📋 [2H] Encontradas ${appointments2h.length} citas para recordatorio 2h`);
 

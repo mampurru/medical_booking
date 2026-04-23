@@ -2,7 +2,7 @@ const { pool } = require('../config/db');
 const { createCalendarEvent } = require('../services/googleCalendarService');
 // Obtener todas las citas (con filtros)
 exports.getAppointments = async (req, res) => {
-  const { doctor_id, patient_id, status, start_date, end_date } = req.query;
+  const { doctor_id, patient_id, status, start_date, end_date } = req.query; 
   const user = req.user;
 
   try {

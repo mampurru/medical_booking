@@ -1,8 +1,9 @@
 const { pool } = require('../config/db');
 const { createCalendarEvent } = require('../services/googleCalendarService');
+
 // Obtener todas las citas (con filtros)
 exports.getAppointments = async (req, res) => {
-  const { doctor_id, patient_id, status, start_date, end_date } = req.query; 
+  const { doctor_id, patient_id, status, start_date, end_date } = req.query;
   const user = req.user;
 
   try {
@@ -25,7 +26,6 @@ exports.getAppointments = async (req, res) => {
 
     // Filtros según el rol
     if (user.role === 'patient') {
-      // Paciente solo ve sus propias citas
       const [patientData] = await pool.query(
         'SELECT id FROM patients WHERE user_id = ?', 
         [user.id]
@@ -36,7 +36,6 @@ exports.getAppointments = async (req, res) => {
       query += ' AND a.patient_id = ?';
       params.push(patientData[0].id);
     } else if (user.role === 'doctor') {
-      // Doctor solo ve sus propias citas
       const [doctorData] = await pool.query(
         'SELECT id FROM doctors WHERE user_id = ?', 
         [user.id]
@@ -47,7 +46,6 @@ exports.getAppointments = async (req, res) => {
       query += ' AND a.doctor_id = ?';
       params.push(doctorData[0].id);
     } else {
-      // Admin puede ver todas o filtrar
       if (doctor_id) {
         query += ' AND a.doctor_id = ?';
         params.push(doctor_id);
@@ -58,7 +56,6 @@ exports.getAppointments = async (req, res) => {
       }
     }
 
-    // Filtros adicionales
     if (status) {
       query += ' AND a.status = ?';
       params.push(status);
@@ -78,10 +75,6 @@ exports.getAppointments = async (req, res) => {
       data: appointments
     });
 
-  // } catch (error) {
-  //   console.error('Error obteniendo citas:', error);
-  //   res.status(500).json({ success: false, message: 'Error del servidor' });
-  // }
   } catch (error) {
     console.error('❌ ERROR CRÍTICO en getAppointments:', {
       message: error.message,
@@ -131,7 +124,6 @@ exports.getAppointmentById = async (req, res) => {
 
     const appointment = appointments[0];
 
-    // Validar permisos
     if (user.role === 'patient') {
       const [patientData] = await pool.query(
         'SELECT user_id FROM patients WHERE id = ?', 
@@ -167,7 +159,6 @@ exports.createAppointment = async (req, res) => {
   const user = req.user;
 
   try {
-    // Validar campos requeridos
     if (!doctor_id || !start_time || !end_time) {
       return res.status(400).json({ 
         success: false, 
@@ -175,7 +166,6 @@ exports.createAppointment = async (req, res) => {
       });
     }
 
-    // Determinar patient_id según el rol
     let finalPatientId = patient_id;
     if (user.role === 'patient') {
       const [patientData] = await pool.query(
@@ -187,7 +177,6 @@ exports.createAppointment = async (req, res) => {
       }
       finalPatientId = patientData[0].id;
       
-      // Validar que no esté intentando agendar para otro
       if (patient_id && patient_id !== finalPatientId) {
         return res.status(403).json({ 
           success: false, 
@@ -203,7 +192,6 @@ exports.createAppointment = async (req, res) => {
       }
     }
 
-    // Validar que el doctor existe
     const [doctors] = await pool.query(
       'SELECT id, consultation_duration FROM doctors WHERE id = ?', 
       [doctor_id]
@@ -212,7 +200,6 @@ exports.createAppointment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Médico no encontrado' });
     }
 
-    // Validar que el paciente existe
     const [patients] = await pool.query(
       'SELECT id FROM patients WHERE id = ?', 
       [finalPatientId]
@@ -221,7 +208,6 @@ exports.createAppointment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Paciente no encontrado' });
     }
 
-    // Validar disponibilidad: no solapar con otras citas
     const [conflicts] = await pool.query(
       `SELECT COUNT(*) as count FROM appointments 
        WHERE doctor_id = ? 
@@ -233,21 +219,6 @@ exports.createAppointment = async (req, res) => {
        )`,
       [doctor_id, end_time, start_time, end_time, start_time, start_time, end_time]
     );
-      // Obtener la cita creada con datos completos
-    const [newAppointment] = await pool.query(
-      `SELECT 
-        a.*, 
-        CONCAT(u.first_name, ' ', u.last_name) as patient_name,
-        CONCAT(du.first_name, ' ', du.last_name) as doctor_name,
-        doc.specialty
-       FROM appointments a
-       JOIN patients p ON a.patient_id = p.id
-       JOIN users u ON p.user_id = u.id
-       JOIN doctors doc ON a.doctor_id = doc.id
-       JOIN doctors d ON a.doctor_id = d.id
-       WHERE a.id = ?`,
-      [result.insertId]
-    );
 
     if (conflicts[0].count > 0) {
       return res.status(409).json({ 
@@ -256,7 +227,6 @@ exports.createAppointment = async (req, res) => {
       });
     }
 
-    // Validar que la fecha no sea en el pasado
     if (new Date(start_time) < new Date()) {
       return res.status(400).json({ 
         success: false, 
@@ -264,7 +234,7 @@ exports.createAppointment = async (req, res) => {
       });
     }
 
-       // Crear la cita
+    // Crear la cita
     const [result] = await pool.query(
       `INSERT INTO appointments 
        (patient_id, doctor_id, start_time, end_time, reason, status, reminder_sent) 
@@ -272,7 +242,7 @@ exports.createAppointment = async (req, res) => {
       [finalPatientId, doctor_id, start_time, end_time, reason || null]
     );
 
-    // Obtener la cita creada con datos completos (SOLO UNA VEZ)
+    // Obtener la cita creada con datos completos
     const [newAppointment] = await pool.query(
       `SELECT 
         a.*, 
@@ -317,7 +287,6 @@ exports.updateAppointment = async (req, res) => {
   const user = req.user;
 
   try {
-    // Validar que la cita existe
     const [appointments] = await pool.query(
       'SELECT * FROM appointments WHERE id = ?', 
       [id]
@@ -328,7 +297,6 @@ exports.updateAppointment = async (req, res) => {
 
     const appointment = appointments[0];
 
-    // Validar permisos según el rol
     if (user.role === 'patient') {
       const [patientData] = await pool.query(
         'SELECT user_id FROM patients WHERE id = ?', 
@@ -337,7 +305,6 @@ exports.updateAppointment = async (req, res) => {
       if (patientData[0]?.user_id !== user.id) {
         return res.status(403).json({ success: false, message: 'No tienes permiso para editar esta cita' });
       }
-      // Paciente solo puede cancelar, no puede cambiar notas clínicas
       if (clinical_notes || (status && status !== 'cancelled')) {
         return res.status(403).json({ 
           success: false, 
@@ -354,7 +321,6 @@ exports.updateAppointment = async (req, res) => {
       }
     }
 
-    // Construir query dinámico según los campos a actualizar
     const updates = [];
     const values = [];
 
@@ -384,7 +350,6 @@ exports.updateAppointment = async (req, res) => {
     const query = `UPDATE appointments SET ${updates.join(', ')} WHERE id = ?`;
     await pool.query(query, values);
 
-    // Obtener la cita actualizada
     const [updatedAppointment] = await pool.query(
       'SELECT * FROM appointments WHERE id = ?', 
       [id]
@@ -405,11 +370,10 @@ exports.updateAppointment = async (req, res) => {
 // Cancelar cita
 exports.cancelAppointment = async (req, res) => {
   const { id } = req.params;
-  const { cancellation_reason } = req.body; // Opcional
+  const { cancellation_reason } = req.body;
   const user = req.user;
 
   try {
-    // Verificar que la cita existe
     const [appointments] = await pool.query(
       `SELECT a.*, p.user_id as patient_user_id, d.user_id as doctor_user_id
        FROM appointments a
@@ -425,12 +389,10 @@ exports.cancelAppointment = async (req, res) => {
 
     const appointment = appointments[0];
 
-    // Validar que no esté ya cancelada
     if (appointment.status === 'cancelled') {
       return res.status(400).json({ success: false, message: 'La cita ya está cancelada' });
     }
 
-    // Validar permisos
     if (user.role === 'patient' && appointment.patient_user_id !== user.id) {
       return res.status(403).json({ success: false, message: 'No tienes permiso para cancelar esta cita' });
     }
@@ -438,7 +400,6 @@ exports.cancelAppointment = async (req, res) => {
       return res.status(403).json({ success: false, message: 'No tienes permiso para cancelar esta cita' });
     }
 
-    // Validar que no sea muy próxima (política de 2 horas)
     const hoursUntilAppointment = (new Date(appointment.start_time) - new Date()) / (1000 * 60 * 60);
     if (hoursUntilAppointment < 2 && user.role === 'patient') {
       return res.status(400).json({ 
@@ -447,7 +408,6 @@ exports.cancelAppointment = async (req, res) => {
       });
     }
 
-    // Cancelar la cita
     await pool.query(
       `UPDATE appointments 
        SET status = 'cancelled', 
@@ -475,7 +435,6 @@ exports.rescheduleAppointment = async (req, res) => {
   const user = req.user;
 
   try {
-    // Validar campos
     if (!new_start_time || !new_end_time) {
       return res.status(400).json({ 
         success: false, 
@@ -483,7 +442,6 @@ exports.rescheduleAppointment = async (req, res) => {
       });
     }
 
-    // Verificar que la cita existe
     const [appointments] = await pool.query(
       `SELECT a.*, d.user_id as doctor_user_id
        FROM appointments a
@@ -498,7 +456,6 @@ exports.rescheduleAppointment = async (req, res) => {
 
     const appointment = appointments[0];
 
-    // Validar permisos (solo doctor o admin pueden reprogramar)
     if (user.role === 'patient') {
       return res.status(403).json({ 
         success: false, 
@@ -509,7 +466,6 @@ exports.rescheduleAppointment = async (req, res) => {
       return res.status(403).json({ success: false, message: 'No tienes permiso para reprogramar esta cita' });
     }
 
-    // Validar que la nueva fecha no sea en el pasado
     if (new Date(new_start_time) < new Date()) {
       return res.status(400).json({ 
         success: false, 
@@ -517,7 +473,6 @@ exports.rescheduleAppointment = async (req, res) => {
       });
     }
 
-    // Validar disponibilidad en el nuevo horario
     const [conflicts] = await pool.query(
       `SELECT COUNT(*) as count FROM appointments 
        WHERE doctor_id = ? 
@@ -537,7 +492,6 @@ exports.rescheduleAppointment = async (req, res) => {
       });
     }
 
-    // Reprogramar
     await pool.query(
       `UPDATE appointments 
        SET start_time = ?, end_time = ?, status = 'rescheduled', updated_at = NOW() 
@@ -545,7 +499,6 @@ exports.rescheduleAppointment = async (req, res) => {
       [new_start_time, new_end_time, id]
     );
 
-    // Obtener cita actualizada
     const [updatedAppointment] = await pool.query(
       'SELECT * FROM appointments WHERE id = ?', 
       [id]
@@ -569,7 +522,6 @@ exports.deleteAppointment = async (req, res) => {
   const user = req.user;
 
   try {
-    // Solo admin puede eliminar permanentemente
     if (user.role !== 'admin') {
       return res.status(403).json({ 
         success: false, 
@@ -611,7 +563,6 @@ exports.getDoctorAvailability = async (req, res) => {
 
     const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'long' });
     
-    // Obtener horarios base del médico
     const [availability] = await pool.query(
       `SELECT * FROM doctor_availability 
        WHERE doctor_id = ? AND day_of_week = ? AND is_active = TRUE`,
@@ -626,7 +577,6 @@ exports.getDoctorAvailability = async (req, res) => {
       });
     }
 
-    // Obtener citas ya agendadas para ese día
     const [appointments] = await pool.query(
       `SELECT start_time, end_time FROM appointments
        WHERE doctor_id = ? 
@@ -635,9 +585,8 @@ exports.getDoctorAvailability = async (req, res) => {
       [doctor_id, date]
     );
 
-    // Calcular slots disponibles (lógica simplificada)
     const availableSlots = [];
-    const slotDuration = 30; // minutos
+    const slotDuration = 30;
 
     availability.forEach(slot => {
       let currentTime = new Date(`${date}T${slot.start_time}`);
@@ -646,7 +595,6 @@ exports.getDoctorAvailability = async (req, res) => {
       while (currentTime < endTime) {
         const slotEnd = new Date(currentTime.getTime() + slotDuration * 60000);
         
-        // Verificar si este slot no se solapa con citas existentes
         const hasConflict = appointments.some(apt => {
           const aptStart = new Date(apt.start_time);
           const aptEnd = new Date(apt.end_time);

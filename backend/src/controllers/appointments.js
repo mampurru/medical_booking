@@ -264,7 +264,7 @@ exports.createAppointment = async (req, res) => {
       });
     }
 
-    // Crear la cita
+       // Crear la cita
     const [result] = await pool.query(
       `INSERT INTO appointments 
        (patient_id, doctor_id, start_time, end_time, reason, status, reminder_sent) 
@@ -272,7 +272,7 @@ exports.createAppointment = async (req, res) => {
       [finalPatientId, doctor_id, start_time, end_time, reason || null]
     );
 
-    // Obtener la cita creada con datos completos
+    // Obtener la cita creada con datos completos (SOLO UNA VEZ)
     const [newAppointment] = await pool.query(
       `SELECT 
         a.*, 
@@ -283,14 +283,12 @@ exports.createAppointment = async (req, res) => {
        JOIN patients p ON a.patient_id = p.id
        JOIN users u ON p.user_id = u.id
        JOIN doctors doc ON a.doctor_id = doc.id
-       JOIN users du ON doc.user_id = du.id
        JOIN doctors d ON a.doctor_id = d.id
        WHERE a.id = ?`,
       [result.insertId]
     );
 
     // === INTEGRACIÓN GOOGLE CALENDAR ===
-    // Llamamos a la función para crear el evento (sin await para no bloquear)
     createCalendarEvent({
       patient_name: newAppointment[0].patient_name,
       start_time: newAppointment[0].start_time,

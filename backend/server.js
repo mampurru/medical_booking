@@ -27,21 +27,25 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5000',
   process.env.FRONTEND_URL,
-  'https://medical-booking-plum.vercel.app',  // ← Tu dominio actual de Vercel
-  'https://medical-booking.vercel.app'         // ← Dominio futuro (cuando lo cambies)
+  'https://medical-booking-plum.vercel.app',  // Tu dominio principal
+  'https://medical-booking.vercel.app'         // Dominio futuro
 ].filter(Boolean);
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Permitir requests sin origin (Postman, móvil, etc.)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = `CORS policy: Origen no permitido: ${origin}`;
-      console.error(msg);
-      return callback(new Error(msg), false);
+    if (/^https:\/\/.*\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
     }
-    return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    
+    const msg = `CORS policy: Origen no permitido: ${origin}`;
+    console.error(msg);
+    return callback(new Error(msg), false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],

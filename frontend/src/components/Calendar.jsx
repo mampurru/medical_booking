@@ -100,6 +100,7 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
         </div>
       ) : (
         <FullCalendar
+          key={JSON.stringify(events)}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView="timeGridWeek"
           locale={esLocale}

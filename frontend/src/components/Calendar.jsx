@@ -45,15 +45,20 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
           if (app.status === 'completed') color = '#22c55e';
           if (app.status === 'cancelled') color = '#ef4444';
 
-          // ✅ ELIMINA cualquier indicio de zona horaria (Z o .000Z)
-          // FullCalendar interpretará esto como HORA LOCAL del navegador
-          const startISO = app.start_time.replace(' ', 'T').replace(/\.?\d{3}Z?$/, '');
-          const endISO = app.end_time.replace(' ', 'T').replace(/\.?\d{3}Z?$/, '');
+          // ✅ Conversión simple: solo cambiar espacio por T
+          // FullCalendar con timeZone="local" interpretará esto como hora local
+          const startISO = app.start_time.replace(' ', 'T');
+          const endISO = app.end_time.replace(' ', 'T');
+
+          console.log(`🕐 Cita ${index}:`, {
+            original: app.start_time,
+            startISO: startISO
+          });
 
           return {
             id: app.id,
             title: userRole === 'patient' ? `Dr. ${app.doctor_name}` : app.patient_name,
-            start: startISO,  // Ejemplo: "2026-04-27T08:00:00"
+            start: startISO,
             end: endISO,
             backgroundColor: color,
             borderColor: color,
@@ -94,6 +99,7 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
         </div>
       ) : (
         <FullCalendar
+          key={events.length}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView="timeGridWeek"
           timeZone="local"

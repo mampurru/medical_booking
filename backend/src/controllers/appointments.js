@@ -19,7 +19,7 @@ exports.getAppointments = async (req, res) => {
       JOIN patients p ON a.patient_id = p.id
       JOIN users u ON p.user_id = u.id
       JOIN doctors doc ON a.doctor_id = doc.id
-      JOIN users du ON doc.user_id = du.id
+      JOIN doctors d ON a.doctor_id = d.id
       WHERE 1=1
     `;
     const params = [];
@@ -253,7 +253,7 @@ exports.createAppointment = async (req, res) => {
        JOIN patients p ON a.patient_id = p.id
        JOIN users u ON p.user_id = u.id
        JOIN doctors doc ON a.doctor_id = doc.id
-       JOIN users du ON doc.user_id = du.id 
+       JOIN doctors d ON a.doctor_id = d.id
        WHERE a.id = ?`,
       [result.insertId]
     );

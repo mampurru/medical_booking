@@ -41,14 +41,14 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
           if (app.status === 'completed') color = '#22c55e';
           if (app.status === 'cancelled') color = '#ef4444';
 
-          // ✅ ELIMINAR .000Z para que FullCalendar interprete como HORA LOCAL
+          // ✅ ELIMINAR ZONA HORARIA COMPLETAMENTE
           const startISO = app.start_time
-            .replace(' ', 'T')
-            .replace(/\.000Z$/, '');  // Elimina .000Z del final
+            .replace(' ', 'T')           // Cambiar espacio por T
+            .split('.')[0];              // Eliminar todo después del punto (incluyendo .000Z)
           
           const endISO = app.end_time
             .replace(' ', 'T')
-            .replace(/\.000Z$/, '');
+            .split('.')[0];
 
           console.log(`🕐 Cita ${index}:`, {
             id: app.id,
@@ -59,7 +59,7 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
           return {
             id: app.id,
             title: userRole === 'patient' ? `Dr. ${app.doctor_name}` : app.patient_name,
-            start: startISO,  // Ej: "2026-04-27T08:00:00" (sin Z)
+            start: startISO,  // Ej: "2026-04-27T08:00:00" (sin .000Z)
             end: endISO,
             backgroundColor: color,
             borderColor: color,

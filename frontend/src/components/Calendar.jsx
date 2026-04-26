@@ -10,7 +10,6 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Debug props
   useEffect(() => {
     console.log('🔍 DEBUG Calendar Props:', { userId, userRole });
   }, [userId, userRole]);
@@ -32,9 +31,6 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
       const response = await api.get('/appointments', { params });
       
       console.log('✅ Respuesta completa:', response);
-      console.log('📦 response.data:', response.data);
-      console.log('📋 appointments:', response.data.data?.appointments);
-      console.log('✅ success?:', response.data.success);
       
       if (response.data.success && response.data.data?.length > 0) {
         const appointments = response.data.data;
@@ -45,20 +41,25 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
           if (app.status === 'completed') color = '#22c55e';
           if (app.status === 'cancelled') color = '#ef4444';
 
-          // ✅ Conversión simple: solo cambiar espacio por T
-          // FullCalendar con timeZone="local" interpretará esto como hora local
-          const startISO = app.start_time.replace(' ', 'T');
-          const endISO = app.end_time.replace(' ', 'T');
+          // ✅ ELIMINAR .000Z para que FullCalendar interprete como HORA LOCAL
+          const startISO = app.start_time
+            .replace(' ', 'T')
+            .replace(/\.000Z$/, '');  // Elimina .000Z del final
+          
+          const endISO = app.end_time
+            .replace(' ', 'T')
+            .replace(/\.000Z$/, '');
 
           console.log(`🕐 Cita ${index}:`, {
+            id: app.id,
             original: app.start_time,
-            startISO: startISO
+            convertido: startISO
           });
 
           return {
             id: app.id,
             title: userRole === 'patient' ? `Dr. ${app.doctor_name}` : app.patient_name,
-            start: startISO,
+            start: startISO,  // Ej: "2026-04-27T08:00:00" (sin Z)
             end: endISO,
             backgroundColor: color,
             borderColor: color,
@@ -66,14 +67,13 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
           };
         });
 
-        console.log('🎨 Eventos finales para FullCalendar:', calendarEvents);
+        console.log('🎨 Eventos finales:', calendarEvents);
         setEvents(calendarEvents);
       } else {
         console.warn('⚠️ No hay citas o success es false');
       }
     } catch (error) {
       console.error('❌ Error cargando citas:', error);
-      console.error('Detalles:', error.response?.data);
     } finally {
       setLoading(false);
     }
@@ -102,7 +102,7 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
           key={events.length}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView="timeGridWeek"
-          timeZone="local"
+          timeZone="local"          // ← IMPORTANTE: interpreta fechas como hora local
           locale={esLocale}
           headerToolbar={{
             left: 'prev,next today',
@@ -110,15 +110,15 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
             right: 'dayGridMonth,timeGridWeek,timeGridDay'
           }}
           events={events}
-          //editable={true}
           editable={userRole === 'doctor' || userRole === 'admin'}
           selectable={true}
           selectMirror={true}
           dayMaxEvents={true}
           weekends={true}
           allDaySlot={false}
-
-          // ✅ Nuevo evento cuando se mueve una cita
+          slotMinTime="08:00:00"
+          slotMaxTime="18:00:00"
+          
           eventDrop={ async (info) => {
             const confirmed = window.confirm(
               `¿Deseas reprogramar esta cita para el ${info.event.start.toLocaleString()}?`
@@ -127,14 +127,12 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
             if (confirmed) {
               try {
                 const newStart = info.event.start;
-                const newEnd = new Date(newStart.getTime() + 30 * 60000); // +30 min
+                const newEnd = new Date(newStart.getTime() + 30 * 60000);
                 
                 const payload = {
                   new_start_time: newStart.toISOString().slice(0, 16),
                   new_end_time: newEnd.toISOString().slice(0, 16)
                 };
-                
-                console.log('🔄 Reprogramando cita:', info.event.id, payload);
                 
                 const response = await api.put(`/appointments/${info.event.id}/reschedule`, payload);
                 
@@ -142,22 +140,18 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
                   alert('✅ Cita reprogramada exitosamente');
                 }
               } catch (error) {
-                alert('❌ ' + (error.response?.data?.message || 'No se puede reprogramar a esta hora'));
-                info.revert(); // ← Regresa la cita a su posición original
+                alert('❌ ' + (error.response?.data?.message || 'No se puede reprogramar'));
+                info.revert();
               }
             } else {
-              info.revert(); // ← Si cancela, regresa a la posición original
+              info.revert();
             }
           }}
-          
-          // ✅ AQUÍ FORZAMOS EL HORARIO VISUAL (8 AM a 6 PM)
-          slotMinTime="08:00:00"
-          slotMaxTime="18:00:00"
           
           eventClick={handleEventClick}
           select={handleDateSelect}
           height="auto"
-          nowIndicator={true} // Muestra una línea roja en la hora actual
+          nowIndicator={true}
         />
       )}
     </div>

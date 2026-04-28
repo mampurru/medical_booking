@@ -35,11 +35,14 @@ const PatientDash = () => {
     fetchDoctors();
   }, []);
 
-  // Función auxiliar para formatear fecha a YYYY-MM-DDTHH:mm
+  // ✅ REEMPLAZA formatDateTimeLocal por esto:
   const formatDateTimeLocal = (date) => {
-    const offset = date.getTimezoneOffset() * 60000;
-    const localDate = new Date(date.getTime() - offset);
-    return localDate.toISOString().slice(0, 16);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
   // Cuando se selecciona una fecha en el calendario

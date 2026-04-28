@@ -3,7 +3,12 @@ import { useAuth } from '../context/AuthContext';
 import Calendar from '../components/Calendar';
 import AppointmentModal from '../components/AppointmentModal';
 import api from '../services/api';
-
+const handleCreateAppointment = async (e) => {
+  e.preventDefault();
+  console.log('🕐 Payload que se envía:', {
+    start_time: formData.start_time,
+    end_time: formData.end_time
+  });}
 const PatientDash = () => {
   const { user } = useAuth();
   const [selectedAppointment, setSelectedAppointment] = useState(null);

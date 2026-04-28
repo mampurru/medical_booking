@@ -37,9 +37,10 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
           // "2026-04-27T08:00:00.000Z" → "2026-04-27T08:00:00"
           const cleanDate = (dateStr) => {
             return dateStr
-              .replace(' ', 'T')      // Espacio → T
-              .split('.')[0];         // Eliminar .000Z o cualquier decimal
-          };
+              .replace('Z', '')           // Quitar la Z de UTC
+              .replace(' ', 'T')          // Espacio → T
+              .split('.')[0];             // Eliminar decimales
+            };
 
           return {
             id: app.id,

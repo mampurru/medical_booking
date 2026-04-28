@@ -68,11 +68,21 @@ exports.getAppointments = async (req, res) => {
     query += ' ORDER BY a.start_time ASC';
 
     const [appointments] = await pool.query(query, params);
+
+    const formattedAppointments = appointments.map(apt => ({
+      ...apt,
+      start_time: apt.start_time instanceof Date 
+        ? apt.start_time.toISOString().replace('Z', '').split('.')[0]
+        : apt.start_time,
+      end_time: apt.end_time instanceof Date 
+        ? apt.end_time.toISOString().replace('Z', '').split('.')[0]
+        : apt.end_time,
+    }));
     
     res.json({
       success: true,
-      count: appointments.length,
-      data: appointments
+      count: formattedAppointments.length,
+      data: formattedAppointments
     });
 
   } catch (error) {

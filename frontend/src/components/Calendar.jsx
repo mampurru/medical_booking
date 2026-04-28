@@ -11,132 +11,48 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('🔍 DEBUG Calendar Props:', { userId, userRole });
-  }, [userId, userRole]);
-
-  useEffect(() => {
     if (userId && userRole) {
       fetchAppointments();
     }
   }, [userId, userRole]);
 
-  // const fetchAppointments = async () => {
-  //   setLoading(true);
-  //   try {
-  //     const params = userRole === 'patient' ? { patient_id: userId } : 
-  //                   userRole === 'doctor' ? { doctor_id: userId } : {};
-      
-  //     console.log('📡 Llamando API con params:', params);
-      
-  //     const response = await api.get('/appointments', { params });
-      
-  //     console.log('✅ Respuesta completa:', response);
-      
-  //     if (response.data.success && response.data.data?.length > 0) {
-  //       const appointments = response.data.data;
-  //       console.log(`🔢 Total de citas recibidas: ${appointments.length}`);
-        
-  //       const calendarEvents = appointments.map((app, index) => {
-  //         let color = '#3b82f6';
-  //         if (app.status === 'completed') color = '#22c55e';
-  //         if (app.status === 'cancelled') color = '#ef4444';
-
-  //         // ✅ ELIMINAR ZONA HORARIA COMPLETAMENTE
-  //         const startISO = app.start_time
-  //           .replace(' ', 'T')           // Cambiar espacio por T
-  //           .split('.')[0];              // Eliminar todo después del punto (incluyendo .000Z)
-          
-  //         const endISO = app.end_time
-  //           .replace(' ', 'T')
-  //           .split('.')[0];
-
-  //         console.log(`🕐 Cita ${index}:`, {
-  //           id: app.id,
-  //           original: app.start_time,
-  //           convertido: startISO
-  //         });
-
-  //         return {
-  //           id: app.id,
-  //           title: userRole === 'patient' ? `Dr. ${app.doctor_name}` : app.patient_name,
-  //           start: startISO,  // Ej: "2026-04-27T08:00:00" (sin .000Z)
-  //           end: endISO,
-  //           backgroundColor: color,
-  //           borderColor: color,
-  //           extendedProps: { ...app }
-  //         };
-  //       });
-
-  //       console.log('🎨 Eventos finales:', calendarEvents);
-  //       setEvents(calendarEvents);
-  //     } else {
-  //       console.warn('⚠️ No hay citas o success es false');
-  //     }
-  //   } catch (error) {
-  //     console.error('❌ Error cargando citas:', error);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
   const fetchAppointments = async () => {
     setLoading(true);
     try {
       const params = userRole === 'patient' ? { patient_id: userId } : 
                     userRole === 'doctor' ? { doctor_id: userId } : {};
       
-      console.log('📡 Llamando API con params:', params);
-      
       const response = await api.get('/appointments', { params });
       
-      console.log('✅ Respuesta completa:', response);
-      console.log('📦 response.data:', response.data);
-      
-      // ✅ ACCESO CORRECTO A LOS DATOS
-      const appointments = Array.isArray(response.data.data) 
-        ? response.data.data 
-        : response.data.data?.appointments || [];
-      
-      console.log('📋 appointments:', appointments);
-      console.log('✅ success?:', response.data.success);
-      
-      if (response.data.success && appointments.length > 0) {
-        console.log(`🔢 Total de citas recibidas: ${appointments.length}`);
+      if (response.data.success && Array.isArray(response.data.data)) {
+        const appointments = response.data.data;
         
-        const calendarEvents = appointments.map((app, index) => {
+        const calendarEvents = appointments.map((app) => {
           let color = '#3b82f6';
           if (app.status === 'completed') color = '#22c55e';
           if (app.status === 'cancelled') color = '#ef4444';
 
-          // ✅ ELIMINAR ZONA HORARIA con split
-          const startISO = app.start_time
-            .replace(' ', 'T')
-            .split('.')[0];  // Elimina .000Z
-          
-          const endISO = app.end_time
-            .replace(' ', 'T')
-            .split('.')[0];
-
-          console.log(`🕐 Cita ${index}:`, {
-            id: app.id,
-            original: app.start_time,
-            convertido: startISO
-          });
+          // ✅ CONVERSIÓN DEFINITIVA: Eliminar cualquier indicio de zona horaria
+          // "2026-04-27 08:00:00" → "2026-04-27T08:00:00"
+          // "2026-04-27T08:00:00.000Z" → "2026-04-27T08:00:00"
+          const cleanDate = (dateStr) => {
+            return dateStr
+              .replace(' ', 'T')      // Espacio → T
+              .split('.')[0];         // Eliminar .000Z o cualquier decimal
+          };
 
           return {
             id: app.id,
             title: userRole === 'patient' ? `Dr. ${app.doctor_name}` : app.patient_name,
-            start: startISO,
-            end: endISO,
+            start: cleanDate(app.start_time),  // Ej: "2026-04-27T08:00:00"
+            end: cleanDate(app.end_time),
             backgroundColor: color,
             borderColor: color,
             extendedProps: { ...app }
           };
         });
 
-        console.log('🎨 Eventos finales:', calendarEvents);
         setEvents(calendarEvents);
-      } else {
-        console.warn('⚠️ No hay citas o success es false');
       }
     } catch (error) {
       console.error('❌ Error cargando citas:', error);
@@ -168,7 +84,7 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
           key={events.length}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView="timeGridWeek"
-          timeZone="local"          // ← IMPORTANTE: interpreta fechas como hora local
+          timeZone="local"           // ← CLAVE: interpreta fechas como hora local del navegador
           locale={esLocale}
           headerToolbar={{
             left: 'prev,next today',
@@ -182,7 +98,7 @@ const Calendar = ({ userId, userRole, onEventClick, onViewDateChange }) => {
           dayMaxEvents={true}
           weekends={true}
           allDaySlot={false}
-          slotMinTime="08:00:00"
+          slotMinTime="08:00:00"    // ← Horario de oficina
           slotMaxTime="18:00:00"
           
           eventDrop={ async (info) => {

@@ -233,6 +233,27 @@ exports.createAppointment = async (req, res) => {
         message: 'No se pueden agendar citas en el pasado' 
       });
     }
+    // === 🕐 VALIDAR HORARIO DE OFICINA (8 AM - 6 PM Colombia) ===
+    const validateOfficeHours = (dateString) => {
+      if (!dateString) return false;
+      
+      // Manejar formato ISO con Z o formato MySQL
+      const cleanDate = dateString.replace('Z', '').replace('T', ' ');
+      const timePart = cleanDate.split(' ')[1]; // "08:00:00"
+      
+      if (!timePart) return false;
+      
+      const [hours] = timePart.split(':').map(Number);
+      return hours >= 8 && hours < 18; // 8 AM a 5:59 PM
+    };
+
+    if (!validateOfficeHours(start_time)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Las citas solo pueden agendarse en horario de oficina (8:00 AM - 6:00 PM)'
+      });
+    }
+    // ============================================================
 
     // Crear la cita
     const [result] = await pool.query(

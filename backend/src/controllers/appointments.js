@@ -270,17 +270,16 @@ exports.createAppointment = async (req, res) => {
 
     // Obtener la cita creada con datos completos
     const [newAppointment] = await pool.query(
-      `SELECT 
-        a.*, 
+      `SELECT a.*, 
         CONCAT(u.first_name, ' ', u.last_name) as patient_name,
         CONCAT(du.first_name, ' ', du.last_name) as doctor_name,
         doc.specialty
-       FROM appointments a
-       JOIN patients p ON a.patient_id = p.id
-       JOIN users u ON p.user_id = u.id
-       JOIN doctors doc ON a.doctor_id = doc.id
-       JOIN doctors d ON a.doctor_id = d.id
-       WHERE a.id = ?`,
+      FROM appointments a
+      JOIN patients p ON a.patient_id = p.id
+      JOIN users u ON p.user_id = u.id
+      JOIN doctors doc ON a.doctor_id = doc.id
+      JOIN users du ON doc.user_id = du.id
+      WHERE a.id = ?`,
       [result.insertId]
     );
 

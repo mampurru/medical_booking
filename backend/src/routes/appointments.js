@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const appointmentsController = require('../controllers/appointments');
-const { verifyTokenMiddleware:authorize } = require('../middleware/auth');
+const { verifyTokenMiddleware, authorize } = require('../middleware/auth');
 const checkRole = require('../middleware/checkRole');
 // Todas las rutas requieren autenticación
 router.use(verifyTokenMiddleware);
@@ -40,15 +40,15 @@ router.put('/:id/cancel',
 // );
 // Solo admins pueden reprogramar
 router.put('/:id/reschedule', 
-  verifyToken, 
+  verifyTokenMiddleware, 
   checkRole(['super_admin', 'admin_general', 'admin_especialidad']), 
   appointmentsController.rescheduleAppointment
 );
 
 // DELETE - Eliminar cita (solo admin)
 router.delete('/:id', 
-  authorize('admin'), 
+  authorize(['super_admin', 'admin_general', 'admin_especialidad']), 
   appointmentsController.deleteAppointment
 );
 
-module.exports = router;
+module.exports = router; 

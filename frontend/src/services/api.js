@@ -25,16 +25,16 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Interceptor: manejar respuestas de error (token expirado, etc.)
+// Interceptor: manejar respuestas de error
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      // Token inválido o expirado → cerrar sesión
+    if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
+    // Para errores 403, solo rechazamos el error y el componente lo maneja
     return Promise.reject(error);
   }
 );

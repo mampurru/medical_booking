@@ -251,9 +251,14 @@ router.post('/create-admin',
       const hashedPassword = await bcrypt.hash(password, 10);
 
       // Insertar en BD
+      // const [result] = await pool.query(
+      //   `INSERT INTO users (first_name, last_name, email, password, role, specialty_id) 
+      //    VALUES (?, ?, ?, ?, ?, ?)`,
+      //   [first_name, last_name, email, hashedPassword, role, specialty_id || null]
+      // );
       const [result] = await pool.query(
-        `INSERT INTO users (first_name, last_name, email, password, role, specialty_id) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO users (first_name, last_name, email, password_hash, role, specialty_id, status) 
+        VALUES (?, ?, ?, ?, ?, ?, 'active')`,
         [first_name, last_name, email, hashedPassword, role, specialty_id || null]
       );
 

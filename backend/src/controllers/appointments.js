@@ -469,14 +469,23 @@ exports.rescheduleAppointment = async (req, res) => {
   const { new_start_time, new_end_time } = req.body;
   const user = req.user;
 
+  
   try {
+    // VALIDAR QUE SOLO ADMINS PUEDAN REPROGRAMAR
+    const allowedRoles = ['super_admin', 'admin_general', 'admin_especialidad'];
+    if (!allowedRoles.includes(user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Solo los administradores pueden reprogramar citas. Contacta al área administrativa.'
+      });
+    }
     if (!new_start_time || !new_end_time) {
       return res.status(400).json({ 
         success: false, 
         message: 'Nueva fecha de inicio y fin son requeridas' 
       });
     }
-
+    
     const [appointments] = await pool.query(
       `SELECT a.*, d.user_id as doctor_user_id
        FROM appointments a

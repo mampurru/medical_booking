@@ -7,7 +7,7 @@ const { verifyTokenMiddleware, authorize } = require('../middleware/auth');
 console.log('✅ Rutas de ADMIN cargadas correctamente'); 
 // Todas las rutas de admin requieren autenticación y rol de admin
 router.use(verifyTokenMiddleware);
-router.use(authorize('admin'));
+router.use(authorize('super_admin', 'admin_general', 'admin_especialidad'));
 
 // 📊 Estadísticas generales
 router.get('/stats', async (req, res) => {
@@ -60,7 +60,7 @@ router.delete('/users/:id', async (req, res) => {
   try {
     // Verificar que no sea el último admin
     const [admins] = await pool.query(
-      `SELECT COUNT(*) as count FROM users WHERE role = 'admin'`
+      `SELECT COUNT(*) as count FROM users WHERE role = 'super_admin'`
     );
     
     if (admins[0].count <= 1) {
@@ -214,5 +214,59 @@ router.get('/users/pending', async (req, res) => {
     res.status(500).json({ success: false, message: 'Error del servidor' });
   }
 });
+// ============================================
+// NUEVAS RUTAS PARA GESTIÓN DE ADMINS
+// ============================================
 
+// 1. Obtener lista de especialidades
+router.get('/specialties', async (req, res) => {
+  try {
+    const [specialties] = await pool.query('SELECT id, name FROM specialties ORDER BY name');
+    res.json({ success: true,  specialties });
+  } catch (error) {
+    console.error('Error obteniendo especialidades:', error);
+    res.status(500).json({ success: false, message: 'Error del servidor' });
+  }
+});
+
+// 2. Crear nuevo Admin (Solo Super Admin)
+router.post('/create-admin', 
+  verifyTokenMiddleware, 
+  authorize('super_admin'), 
+  async (req, res) => {
+    const { first_name, last_name, email, password, role, specialty_id } = req.body;
+
+    try {
+      // Validaciones
+      const validRoles = ['admin_general', 'admin_especialidad'];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ success: false, message: 'Rol de admin no válido' });
+      }
+
+      if (role === 'admin_especialidad' && !specialty_id) {
+        return res.status(400).json({ success: false, message: 'Se requiere especialidad para este rol' });
+      }
+
+      // Hashear contraseña
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Insertar en BD
+      const [result] = await pool.query(
+        `INSERT INTO users (first_name, last_name, email, password, role, specialty_id) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [first_name, last_name, email, hashedPassword, role, specialty_id || null]
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Admin creado exitosamente',
+         data: { id: result.insertId, email, role } 
+      });
+
+    } catch (error) {
+      console.error('Error creando admin:', error);
+      res.status(500).json({ success: false, message: 'Error del servidor' });
+    }
+  }
+);
 module.exports = router;

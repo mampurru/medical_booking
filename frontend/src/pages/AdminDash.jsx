@@ -154,7 +154,7 @@ const AdminDash = () => {
       doctor: 'bg-green-100 text-green-800',
       admin: 'bg-purple-100 text-purple-800'
     };
-    const labels = { patient: 'Paciente', doctor: 'Doctor', admin: 'Admin' };
+    const labels = { patient: 'Paciente', doctor: 'Doctor', admin: 'Admin' , super_admin: 'Super Admin', admin_general: 'Admin General', admin_especialidad: 'Admin Especialidad'};
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${colors[role]}`}>
         {labels[role]}

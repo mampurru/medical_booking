@@ -332,6 +332,9 @@ const AdminDash = () => {
                     <option value="patient">Pacientes</option>
                     <option value="doctor">Doctores</option>
                     <option value="admin">Administradores</option>
+                    <option value="super_admin">Super Admin</option>
+                    <option value="admin_general">Admin General</option>
+                    <option value="admin_especialidad">Admin Especialidad</option>
                   </select>
                   <button
                     onClick={fetchData}

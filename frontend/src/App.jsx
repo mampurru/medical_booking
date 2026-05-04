@@ -51,6 +51,9 @@ const GuestRoute = ({ children }) => {
 
   if (user) {
     switch (user.role) {
+      case 'super_admin':
+      case 'admin_general':
+      case 'admin_especialidad':
       case 'admin': return <Navigate to="/admin" replace />;
       case 'doctor': return <Navigate to="/doctor" replace />;
       case 'patient': return <Navigate to="/patient" replace />;
@@ -88,9 +91,9 @@ function App() {
               </ProtectedRoute>
             } />
 
-            {/* Rutas protegidas - Admin (placeholder por ahora) */}
+            {/* Rutas protegidas - Admin */}
             <Route path="/admin" element={
-              <ProtectedRoute allowedRoles={['admin']}>
+              <ProtectedRoute allowedRoles={['admin', 'super_admin', 'admin_general', 'admin_especialidad']}>
                 <AdminDash />
               </ProtectedRoute>
             } />

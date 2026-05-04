@@ -15,6 +15,33 @@ const Login = () => {
     setError('');
   };
 
+  // const handleSubmit = async (e) => {
+  //   e.preventDefault();
+  //   setLoading(true);
+  //   setError('');
+
+  //   const result = await login(formData.email, formData.password);
+    
+  //   if (result.success) {
+  //     // Redirigir según el rol
+  //     switch (result.user.role) {
+  //       case 'admin':
+  //         navigate('/admin');
+  //         break;
+  //       case 'doctor':
+  //         navigate('/doctor');
+  //         break;
+  //       case 'patient':
+  //         navigate('/patient');
+  //         break;
+  //       default:
+  //         navigate('/');
+  //     }
+  //   } else {
+  //     setError(result.message || 'Credenciales inválidas');
+  //   }
+  //   setLoading(false);
+  // };
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -23,9 +50,12 @@ const Login = () => {
     const result = await login(formData.email, formData.password);
     
     if (result.success) {
-      // Redirigir según el rol
+      // Redirigir según el rol (ACTUALIZADO)
       switch (result.user.role) {
-        case 'admin':
+        case 'super_admin':
+        case 'admin_general':
+        case 'admin_especialidad':
+        case 'admin':  // Para compatibilidad con admins antiguos
           navigate('/admin');
           break;
         case 'doctor':
@@ -35,7 +65,8 @@ const Login = () => {
           navigate('/patient');
           break;
         default:
-          navigate('/');
+          console.error('Rol no reconocido:', result.user.role);
+          setError('Rol de usuario no reconocido. Contacta al administrador.');
       }
     } else {
       setError(result.message || 'Credenciales inválidas');

@@ -152,12 +152,25 @@ const AdminDash = () => {
     const colors = {
       patient: 'bg-blue-100 text-blue-800',
       doctor: 'bg-green-100 text-green-800',
-      admin: 'bg-purple-100 text-purple-800'
+      admin: 'bg-purple-100 text-purple-800',
+      super_admin: 'bg-red-100 text-red-800',
+      admin_general: 'bg-indigo-100 text-indigo-800',
+      admin_especialidad: 'bg-pink-100 text-pink-800'
     };
-    const labels = { patient: 'Paciente', doctor: 'Doctor', admin: 'Admin' , super_admin: 'Super Admin', admin_general: 'Admin General', admin_especialidad: 'Admin Especialidad'};
+    
+    const labels = {
+      patient: 'Paciente',
+      doctor: 'Doctor',
+      admin: 'Admin',
+      super_admin: 'Super Admin',
+      admin_general: 'Admin General',
+      admin_especialidad: 'Admin Esp.'
+    };
+    
+    // Fallback si el rol no existe
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${colors[role]}`}>
-        {labels[role]}
+      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${colors[role] || 'bg-gray-100 text-gray-800'}`}>
+        {labels[role] || role}
       </span>
     );
   };

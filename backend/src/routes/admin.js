@@ -299,4 +299,114 @@ router.post('/create-admin',
     }
   }
 );
+// ✅ Aprobar solicitud de cancelación
+router.post('/cancellation-requests/:id/approve',
+  verifyTokenMiddleware,
+  authorize('super_admin', 'admin_general', 'admin_especialidad'),
+  async (req, res) => {
+    const { id } = req.params;
+    const { admin_notes } = req.body;
+
+    try {
+      // 1. Verificar que la solicitud existe y está pendiente
+      const [request] = await pool.query('SELECT * FROM cancellation_requests WHERE id = ? AND status = "pending"', [id]);
+      if (request.length === 0) {
+        return res.status(404).json({ success: false, message: 'Solicitud no encontrada o ya procesada' });
+      }
+
+      const cancellation = request[0];
+
+      // 2. Actualizar estado de la solicitud
+      await pool.query(
+        'UPDATE cancellation_requests SET status = "approved", reviewed_by = ?, reviewed_at = NOW(), admin_notes = ? WHERE id = ?',
+        [req.user.id, admin_notes || '', id]
+      );
+
+      // 3. Actualizar la cita a 'cancelled'
+      await pool.query('UPDATE appointments SET status = "cancelled" WHERE id = ?', [cancellation.appointment_id]);
+
+      // 4. TODO: Aquí iría el envío de email al paciente y reporte al Super Admin
+      console.log(` Cancelación aprobada para cita ${cancellation.appointment_id}. Enviando emails...`);
+
+      res.json({
+        success: true,
+        message: 'Cancelación aprobada. La cita ha sido marcada como cancelada.'
+      });
+
+    } catch (error) {
+      console.error('Error aprobando cancelación:', error);
+      res.status(500).json({ success: false, message: 'Error del servidor' });
+    }
+  }
+);
+
+// ❌ Rechazar solicitud de cancelación
+router.post('/cancellation-requests/:id/reject',
+  verifyTokenMiddleware,
+  authorize('super_admin', 'admin_general', 'admin_especialidad'),
+  async (req, res) => {
+    const { id } = req.params;
+    const { admin_notes } = req.body;
+
+    try {
+      // 1. Verificar que la solicitud existe y está pendiente
+      const [request] = await pool.query('SELECT * FROM cancellation_requests WHERE id = ? AND status = "pending"', [id]);
+      if (request.length === 0) {
+        return res.status(404).json({ success: false, message: 'Solicitud no encontrada o ya procesada' });
+      }
+
+      // 2. Actualizar estado a 'rejected'
+      await pool.query(
+        'UPDATE cancellation_requests SET status = "rejected", reviewed_by = ?, reviewed_at = NOW(), admin_notes = ? WHERE id = ?',
+        [req.user.id, admin_notes || '', id]
+      );
+
+      res.json({
+        success: true,
+        message: 'Cancelación rechazada. La cita sigue programada.'
+      });
+
+    } catch (error) {
+      console.error('Error rechazando cancelación:', error);
+      res.status(500).json({ success: false, message: 'Error del servidor' });
+    }
+  }
+);
+
+// 📋 Obtener todas las solicitudes de cancelación (Historial)
+router.get('/cancellation-requests',
+  verifyTokenMiddleware,
+  authorize('super_admin', 'admin_general', 'admin_especialidad'),
+  async (req, res) => {
+    try {
+      let query = `
+        SELECT cr.*, 
+               u.first_name as doctor_first_name, u.last_name as doctor_last_name,
+               a.patient_id, p.first_name as patient_first_name, p.last_name as patient_last_name
+        FROM cancellation_requests cr
+        JOIN doctors d ON cr.doctor_id = d.id
+        JOIN users u ON d.user_id = u.id
+        JOIN appointments a ON cr.appointment_id = a.id
+        JOIN users p ON a.patient_id = p.id
+        WHERE 1=1
+      `;
+      const params = [];
+
+      // Filtro por especialidad si es admin_especialidad
+      if (req.user.role === 'admin_especialidad' && req.user.specialty_id) {
+        query += ' AND d.specialty_id = ?';
+        params.push(req.user.specialty_id);
+      }
+
+      query += ' ORDER BY cr.requested_at DESC';
+
+      const [requests] = await pool.query(query, params);
+      res.json({ success: true, requests });
+
+    } catch (error) {
+      console.error('Error obteniendo solicitudes:', error);
+      res.status(500).json({ success: false, message: 'Error del servidor' });
+    }
+  }
+);
 module.exports = router;

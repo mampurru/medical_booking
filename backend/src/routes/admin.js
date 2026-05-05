@@ -39,14 +39,39 @@ router.get('/stats', async (req, res) => {
 });
 
 // 👥 Listar todos los usuarios
+// router.get('/users', async (req, res) => {
+//   try {
+//     const [users] = await pool.query(
+//       `SELECT id, email, role, first_name, last_name, phone, created_at 
+//        FROM users 
+//        ORDER BY created_at DESC`
+//     );
+//     res.json({ success: true,  users });
+//   } catch (error) {
+//     console.error('Error obteniendo usuarios:', error);
+//     res.status(500).json({ success: false, message: 'Error del servidor' });
+//   }
+// });
+// 👥 Listar todos los usuarios (CON FILTRO POR ESPECIALIDAD)
 router.get('/users', async (req, res) => {
   try {
-    const [users] = await pool.query(
-      `SELECT id, email, role, first_name, last_name, phone, created_at 
-       FROM users 
-       ORDER BY created_at DESC`
-    );
-    res.json({ success: true,  users });
+    let query = `
+      SELECT id, email, role, first_name, last_name, phone, created_at, specialty_id
+      FROM users 
+      WHERE 1=1
+    `;
+    const params = [];
+
+    // 🔐 Si es admin de especialidad, solo ver doctores de su especialidad
+    if (req.user.role === 'admin_especialidad' && req.user.specialty_id) {
+      query += ` AND (role != 'doctor' OR specialty_id = ?)`;
+      params.push(req.user.specialty_id);
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const [users] = await pool.query(query, params);
+    res.json({ success: true, users });
   } catch (error) {
     console.error('Error obteniendo usuarios:', error);
     res.status(500).json({ success: false, message: 'Error del servidor' });

@@ -1,10 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
 const AdminDash = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+  
+  // ✅ DETECTAR TIPO DE ADMIN
+  const isAdminSuper = user?.role === 'super_admin';
+  const isAdminGeneral = user?.role === 'admin_general';
+  const isAdminEspecialidad = user?.role === 'admin_especialidad';
+  const userSpecialtyId = user?.specialty_id;
+
   const [stats, setStats] = useState({});
   const [users, setUsers] = useState([]);
   const [appointments, setAppointments] = useState([]);
@@ -13,77 +20,95 @@ const AdminDash = () => {
   const [filterDate, setFilterDate] = useState('');
   const [showDoctorForm, setShowDoctorForm] = useState(false);
   const [pendingUsers, setPendingUsers] = useState([]);
+  const [specialties, setSpecialties] = useState([]);
 
   // Cargar estadísticas y datos al iniciar
   useEffect(() => {
     fetchData();
+    // Cargar especialidades para el formulario de doctores
+    if (isAdminSuper || isAdminGeneral) {
+      loadSpecialties();
+    }
   }, []);
+
   // Cargar usuarios pendientes cuando se active la pestaña
   useEffect(() => {
-    if (activeTab === 'pending') {
-      const loadPendingUsers = async () => {
-        try {
-          const res = await api.get('/admin/users/pending');
-          console.log('📋 Pendientes recibidos:', res.data); // Debug
-          if (res.data.success) {
-            setPendingUsers(res.data.users || []);
-          }
-        } catch (error) {
-          console.error('Error cargando pendientes:', error);
-          setPendingUsers([]);
-        }
-      };
+    if (activeTab === 'pending' && (isAdminSuper || isAdminGeneral)) {
       loadPendingUsers();
     }
-  }, [activeTab]);
+  }, [activeTab, isAdminSuper, isAdminGeneral]);
+
+  const loadSpecialties = async () => {
+    try {
+      const res = await api.get('/admin/specialties');
+      if (res.data.success) {
+        setSpecialties(res.data.specialties);
+      }
+    } catch (error) {
+      console.error('Error cargando especialidades:', error);
+    }
+  };
+
+  const loadPendingUsers = async () => {
+    try {
+      const res = await api.get('/admin/users/pending');
+      if (res.data.success) {
+        setPendingUsers(res.data.users || []);
+      }
+    } catch (error) {
+      console.error('Error cargando pendientes:', error);
+      setPendingUsers([]);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
     try {
-        // Estadísticas
-        try {
+      // Estadísticas
+      try {
         const statsRes = await api.get('/admin/stats');
         if (statsRes.data.success) {
-            setStats(statsRes.data.data);
+          setStats(statsRes.data.data);
         }
-        } catch (error) {
+      } catch (error) {
         console.log('Stats no disponibles');
         setStats({
-            total_users: 0,
-            appointments_today: 0,
-            appointments_pending: 0,
-            active_doctors: 0
+          total_users: 0,
+          appointments_today: 0,
+          appointments_pending: 0,
+          active_doctors: 0
         });
-        }
+      }
 
-        // Usuarios
-        try {
+      // Usuarios (el backend ya filtra por especialidad si es admin_especialidad)
+      try {
         const usersRes = await api.get('/admin/users');
         if (usersRes.data.success) {
-            setUsers(usersRes.data.users || []);
+          setUsers(usersRes.data.users || []);
         }
-        } catch (error) {
+      } catch (error) {
         console.log('Usuarios no disponibles');
         setUsers([]);
-        }
+      }
 
-        // Citas
-        try {
+      // Citas
+      try {
         const appointmentsRes = await api.get('/appointments');
         if (appointmentsRes.data.success) {
-            const apps = appointmentsRes.data.data?.appointments || appointmentsRes.data.data || [];
-            setAppointments(apps);
+          const apps = appointmentsRes.data.data?.appointments || appointmentsRes.data.data || [];
+          setAppointments(apps);
         }
-        } catch (error) {
+      } catch (error) {
         console.log('Citas no disponibles');
         setAppointments([]);
-        }
+      }
     } catch (error) {
-        console.error('Error general:', error);
+      console.error('Error general:', error);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
+
   // Eliminar usuario
   const handleDeleteUser = async (userId, userName) => {
     if (!window.confirm(`¿Eliminar permanentemente a ${userName}?`)) return;
@@ -109,6 +134,7 @@ const AdminDash = () => {
       alert('❌ Error: ' + error.response?.data?.message);
     }
   };
+
   // Aprobar usuario pendiente
   const handleApproveUser = async (userId, userName) => {
     if (!window.confirm(`¿Aprobar a ${userName}?`)) return;
@@ -116,9 +142,7 @@ const AdminDash = () => {
     try {
       await api.put(`/admin/users/${userId}/approve`);
       alert('✅ Usuario aprobado');
-      // Actualizar lista localmente
       setPendingUsers(prev => prev.filter(u => u.id !== userId));
-      // Refrescar stats generales
       fetchData();
     } catch (error) {
       alert('❌ Error: ' + error.response?.data?.message);
@@ -132,7 +156,6 @@ const AdminDash = () => {
     try {
       await api.delete(`/admin/users/${userId}/reject`);
       alert('🗑️ Usuario rechazado y eliminado');
-      // Actualizar lista localmente
       setPendingUsers(prev => prev.filter(u => u.id !== userId));
     } catch (error) {
       alert('❌ Error: ' + error.response?.data?.message);
@@ -167,7 +190,6 @@ const AdminDash = () => {
       admin_especialidad: 'Admin Esp.'
     };
     
-    // Fallback si el rol no existe
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${colors[role] || 'bg-gray-100 text-gray-800'}`}>
         {labels[role] || role}
@@ -193,6 +215,8 @@ const AdminDash = () => {
       </span>
     );
   };
+
+  // Crear doctor
   const handleCreateDoctor = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -202,21 +226,76 @@ const AdminDash = () => {
       await api.post('/admin/doctors', doctorData);
       alert('✅ Doctor creado');
       e.target.reset();
-      fetchData(); // Refrescar datos
+      setShowDoctorForm(false);
+      fetchData();
     } catch (error) {
       alert('❌ Error: ' + error.response?.data?.message);
     }
   };
-  
-  // Filtrar usuarios
-  const filteredUsers = filterRole === 'all' 
-    ? users 
-    : users.filter(u => u.role === filterRole);
 
-  // Filtrar citas
-  const filteredAppointments = filterDate 
-    ? appointments.filter(a => a.start_time.startsWith(filterDate))
-    : appointments;
+  // ✅ FILTRAR USUARIOS SEGÚN ROL
+  const filteredUsers = useMemo(() => {
+    let result = filterRole === 'all' 
+      ? users 
+      : users.filter(u => u.role === filterRole);
+
+    // Si es admin de especialidad, solo ver doctores de su especialidad
+    if (isAdminEspecialidad && userSpecialtyId) {
+      result = result.filter(u => {
+        if (u.role === 'doctor') {
+          return u.specialty_id === userSpecialtyId;
+        }
+        return true; // Deja ver pacientes y otros roles
+      });
+    }
+    return result;
+  }, [users, filterRole, isAdminEspecialidad, userSpecialtyId]);
+
+  // ✅ FILTRAR CITAS SEGÚN ROL
+  const filteredAppointments = useMemo(() => {
+    let result = filterDate 
+      ? appointments.filter(a => a.start_time.startsWith(filterDate))
+      : appointments;
+
+    // Si es admin de especialidad, solo ver citas de doctores de su especialidad
+    if (isAdminEspecialidad && userSpecialtyId) {
+      result = result.filter(a => a.doctor_specialty_id === userSpecialtyId);
+    }
+    return result;
+  }, [appointments, filterDate, isAdminEspecialidad, userSpecialtyId]);
+
+  // ✅ GENERAR TABS DINÁMICOS SEGÚN ROL
+  const getTabs = () => {
+    const tabs = [
+      { id: 'dashboard', label: '📊 Dashboard', icon: '📊' },
+      { id: 'users', label: '👥 Usuarios', icon: '👥' },
+      { id: 'appointments', label: '📅 Citas', icon: '📅' },
+      { id: 'reports', label: '📈 Reportes', icon: '📈' },
+    ];
+    
+    // Solo super_admin ve Config
+    if (isAdminSuper) {
+      tabs.push({ id: 'settings', label: '⚙️ Config', icon: '⚙️' });
+    }
+    
+    //  ven Pendientes
+    if (isAdminSuper || isAdminGeneral || isAdminGeneral) { 
+      tabs.push({ id: 'pending', label: '⏳ Pendientes', icon: '⏳' });
+    }
+    
+    return tabs;
+  };
+
+  // ✅ OBTENER LABEL DEL ROL ACTUAL
+  const getRoleLabel = () => {
+    const labels = {
+      super_admin: 'Super Admin',
+      admin_general: 'Admin General',
+      admin_especialidad: 'Admin Especialidad',
+      admin: 'Admin'
+    };
+    return labels[user?.role] || 'Admin';
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -226,39 +305,44 @@ const AdminDash = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-800">⚙️ Panel de Administración</h1>
-              <p className="text-gray-500 text-sm">Gestión completa del sistema</p>
+              <p className="text-gray-500 text-sm">
+                {isAdminSuper && 'Acceso total al sistema'}
+                {isAdminGeneral && 'Gestión general de usuarios y citas'}
+                {isAdminEspecialidad && `Gestión de especialidad: ${user?.specialty_name || '...'}`}
+              </p>
             </div>
             <div className="flex items-center space-x-3">
               <span className="text-sm text-gray-600">
                 Hola, {user?.firstName} {user?.lastName}
               </span>
-              <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold">
-                Administrador
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                isAdminSuper ? 'bg-red-100 text-red-800' :
+                isAdminGeneral ? 'bg-indigo-100 text-indigo-800' :
+                isAdminEspecialidad ? 'bg-pink-100 text-pink-800' :
+                'bg-purple-100 text-purple-800'
+              }`}>
+                {getRoleLabel()}
               </span>
             </div> 
             <div>
-            <button 
-              onClick={() => setShowDoctorForm(!showDoctorForm)}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
-              ➕ Nuevo Doctor
-            </button>
+              {/* Mostrar botón "Nuevo Doctor" solo para super_admin y admin_general */}
+              {(isAdminSuper || isAdminGeneral) && (
+                <button 
+                  onClick={() => setShowDoctorForm(!showDoctorForm)}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+                  ➕ Nuevo Doctor
+                </button>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tabs de navegación */}
+      {/* Tabs de navegación - DINÁMICOS */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4">
           <nav className="flex space-x-8">
-            {[
-              { id: 'dashboard', label: '📊 Dashboard', icon: '📊' },
-              { id: 'users', label: '👥 Usuarios', icon: '👥' },
-              { id: 'appointments', label: '📅 Citas', icon: '📅' },
-              { id: 'reports', label: '📈 Reportes', icon: '📈' },
-              { id: 'settings', label: '⚙️ Config', icon: '⚙️' },
-              { id: 'pending', label: '⏳ Pendientes', icon: '⏳' }
-            ].map(tab => (
+            {getTabs().map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -313,7 +397,7 @@ const AdminDash = () => {
                   </div>
                   <div className="p-4">
                     <div className="space-y-3">
-                      {appointments.slice(0, 5).map(app => (
+                      {filteredAppointments.slice(0, 5).map(app => (
                         <div key={app.id} className="flex items-center justify-between py-2 border-b last:border-0">
                           <div>
                             <p className="font-medium text-gray-800">{app.patient_name}</p>
@@ -345,9 +429,9 @@ const AdminDash = () => {
                     <option value="patient">Pacientes</option>
                     <option value="doctor">Doctores</option>
                     <option value="admin">Administradores</option>
-                    <option value="super_admin">Super Admin</option>
-                    <option value="admin_general">Admin General</option>
-                    <option value="admin_especialidad">Admin Especialidad</option>
+                    {isAdminSuper && <option value="super_admin">Super Admin</option>}
+                    {(isAdminSuper || isAdminGeneral) && <option value="admin_general">Admin General</option>}
+                    {(isAdminSuper || isAdminGeneral) && <option value="admin_especialidad">Admin Especialidad</option>}
                   </select>
                   <button
                     onClick={fetchData}
@@ -382,7 +466,8 @@ const AdminDash = () => {
                             {new Date(u.created_at).toLocaleDateString('es-ES')}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            {u.role !== 'admin' && (
+                            {/* Solo super_admin puede eliminar admins */}
+                            {(!['admin', 'super_admin', 'admin_general', 'admin_especialidad'].includes(u.role) || isAdminSuper) && (
                               <button
                                 onClick={() => handleDeleteUser(u.id, u.first_name)}
                                 className="text-red-600 hover:text-red-800 text-sm font-medium"
@@ -487,8 +572,8 @@ const AdminDash = () => {
               </div>
             )}
 
-            {/* ⚙️ CONFIGURACIÓN */}
-            {activeTab === 'settings' && (
+            {/* ⚙️ CONFIGURACIÓN - SOLO SUPER ADMIN */}
+            {activeTab === 'settings' && isAdminSuper && (
               <div className="space-y-6">
                 <div className="bg-white p-6 rounded-xl shadow-sm border">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4">⚙️ Configuración del Sistema</h3>
@@ -540,8 +625,8 @@ const AdminDash = () => {
               </div>
             )}
 
-            {/*Contenido de la pestaña:*/} 
-            {activeTab === 'pending' && (
+            {/* ⏳ PENDIENTES - SOLO SUPER ADMIN Y ADMIN GENERAL */}
+            {activeTab === 'pending' && (isAdminSuper || isAdminGeneral || isAdminEspecialidad) && (
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Usuarios pendientes de aprobación</h3>
                 
@@ -590,15 +675,25 @@ const AdminDash = () => {
             )}
           </>
         )}
-        {showDoctorForm && (
+
+        {/* Modal para crear doctor -  */}
+        {showDoctorForm && (isAdminSuper || isAdminGeneral || isAdminEspecialidad) && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <form onSubmit={handleCreateDoctor} className="bg-white p-6 rounded-xl shadow-lg w-96">
+            <form onSubmit={handleCreateDoctor} className="bg-white p-6 rounded-xl shadow-lg w-96 max-h-[90vh] overflow-y-auto">
               <h3 className="text-lg font-semibold mb-4">Crear Nuevo Doctor</h3>
               <input name="firstName" placeholder="Nombre" required className="w-full mb-2 p-2 border rounded" />
               <input name="lastName" placeholder="Apellido" required className="w-full mb-2 p-2 border rounded" />
               <input name="email" type="email" placeholder="Email" required className="w-full mb-2 p-2 border rounded" />
               <input name="password" type="password" placeholder="Contraseña temporal" required className="w-full mb-2 p-2 border rounded" />
-              <input name="specialty" placeholder="Especialidad" required className="w-full mb-2 p-2 border rounded" />
+              
+              {/* Selector de especialidad */}
+              <select name="specialty" required className="w-full mb-2 p-2 border rounded">
+                <option value="">Seleccionar especialidad</option>
+                {specialties.map(spec => (
+                  <option key={spec.id} value={spec.name}>{spec.name}</option>
+                ))}
+              </select>
+              
               <input name="license_number" placeholder="N° Licencia" required className="w-full mb-4 p-2 border rounded" />
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setShowDoctorForm(false)} className="px-4 py-2 text-gray-600">Cancelar</button>

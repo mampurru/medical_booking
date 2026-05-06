@@ -1043,70 +1043,70 @@ const AdminDash = () => {
               </button>
             </div>
           </div>
-          {/* 🔄 MODAL DE REASIGNACIÓN */}
-          {showReassignModal && selectedRequest && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
-                <div className="bg-blue-600 p-4">
-                  <h3 className="text-white font-bold text-lg">🔄 Reasignar Cita</h3>
-                  <p className="text-blue-100 text-xs">Mover la cita a otro doctor o fecha</p>
-                </div>
-                <div className="p-6 space-y-4">
-                  {/* Selector de Doctor */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nuevo Doctor *</label>
-                    <select
-                      value={reassignData.new_doctor_id}
-                      onChange={(e) => setReassignData({...reassignData, new_doctor_id: e.target.value})}
-                      className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                    >
-                      <option value="">Seleccionar doctor...</option>
-                      {availableDoctors.map(doc => (
-                        <option key={doc.id} value={doc.id}>
-                          Dr. {doc.first_name} {doc.last_name} 
-                          {/* Si tienes la especialidad en el objeto user, muéstrala aquí */}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-        
-                  {/* Selector de Fecha/Hora */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nueva Fecha y Hora *</label>
-                    <input
-                      type="datetime-local"
-                      value={reassignData.new_start_time}
-                      onChange={(e) => setReassignData({...reassignData, new_start_time: e.target.value})}
-                      className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">El sistema verificará si el doctor está libre.</p>
-                  </div>
-        
-                  {/* Notas */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Notas (Opcional)</label>
-                    <textarea
-                      value={reassignData.note}
-                      onChange={(e) => setReassignData({...reassignData, note: e.target.value})}
-                      className="w-full border rounded-lg p-2 text-sm outline-none"
-                      rows="2"
-                      placeholder="Motivo del cambio..."
-                    />
-                  </div>
-                </div>
-                <div className="bg-gray-50 p-4 flex justify-end gap-2">
-                  <button onClick={() => setShowReassignModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded">Cancelar</button>
-                  <button 
-                    onClick={confirmReassign} 
-                    disabled={isProcessing}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {isProcessing ? 'Reasignando...' : 'Confirmar Reasignación'}
-                  </button>
-                </div>
+        </div>
+      )}
+      {/* 🔄 MODAL DE REASIGNACIÓN */}
+      {showReassignModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="bg-blue-600 p-4">
+              <h3 className="text-white font-bold text-lg">🔄 Reasignar Cita</h3>
+              <p className="text-blue-100 text-xs">Mover la cita a otro doctor o fecha</p>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Selector de Doctor */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nuevo Doctor *</label>
+                <select
+                  value={reassignData.new_doctor_id}
+                  onChange={(e) => setReassignData({...reassignData, new_doctor_id: e.target.value})}
+                  className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">Seleccionar doctor...</option>
+                  {availableDoctors.map(doc => (
+                    <option key={doc.id} value={doc.id}>
+                      Dr. {doc.first_name} {doc.last_name} 
+                      {/* Si tienes la especialidad en el objeto user, muéstrala aquí */}
+                    </option>
+                  ))}
+                </select>
+              </div>
+    
+              {/* Selector de Fecha/Hora */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nueva Fecha y Hora *</label>
+                <input
+                  type="datetime-local"
+                  value={reassignData.new_start_time}
+                  onChange={(e) => setReassignData({...reassignData, new_start_time: e.target.value})}
+                  className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">El sistema verificará si el doctor está libre.</p>
+              </div>
+    
+              {/* Notas */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notas (Opcional)</label>
+                <textarea
+                  value={reassignData.note}
+                  onChange={(e) => setReassignData({...reassignData, note: e.target.value})}
+                  className="w-full border rounded-lg p-2 text-sm outline-none"
+                  rows="2"
+                  placeholder="Motivo del cambio..."
+                />
               </div>
             </div>
-          )}
+            <div className="bg-gray-50 p-4 flex justify-end gap-2">
+              <button onClick={() => setShowReassignModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded">Cancelar</button>
+              <button 
+                onClick={confirmReassign} 
+                disabled={isProcessing}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {isProcessing ? 'Reasignando...' : 'Confirmar Reasignación'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

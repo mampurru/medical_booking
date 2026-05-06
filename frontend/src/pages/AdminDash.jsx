@@ -1,12 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { io } from 'socket.io-client';
 
 const AdminDash = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Referencia para evitar problemas de estado antiguo (stale state)
+  const activeTabRef = React.useRef(activeTab);
+  React.useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
   
-  // ✅ DETECTAR TIPO DE ADMIN
+  // DETECTAR TIPO DE ADMIN
   const isAdminSuper = user?.role === 'super_admin';
   const isAdminGeneral = user?.role === 'admin_general';
   const isAdminEspecialidad = user?.role === 'admin_especialidad';
@@ -35,6 +42,71 @@ const AdminDash = () => {
 
   const [cancellationReports, setCancellationReports] = useState([]);
   const [reportsLoading, setReportsLoading] = useState(false);
+
+  // Función para mostrar notificación tipo "Toast"
+  const showToast = (message) => {
+    const existingToast = document.getElementById('admin-toast');
+    if (existingToast) existingToast.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'admin-toast';
+    toast.className = 'fixed top-4 right-4 bg-blue-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[9999] flex items-center gap-3 animate-bounce';
+    toast.innerHTML = `
+      <span class="text-2xl">🔔</span>
+      <div>
+        <p class="font-bold">Nueva Solicitud</p>
+        <p class="text-sm">${message}</p>
+      </div>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Remover después de 5 segundos
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity 0.5s';
+      setTimeout(() => toast.remove(), 500);
+    }, 5000);
+  };
+  // CONEXIÓN SOCKET.IO
+  useEffect(() => {
+    // URL de tu backend en Railway (sin /api)
+    const SOCKET_URL = process.env.REACT_APP_API_URL 
+      ? process.env.REACT_APP_API_URL.replace('/api', '') 
+      : 'https://medicalbooking-production.up.railway.app';
+
+    const newSocket = io(SOCKET_URL, {
+      transports: ['websocket', 'polling']
+    });
+
+    newSocket.on('connect', () => {
+      console.log('✅ Socket conectado');
+      if (user?.id) {
+        newSocket.emit('join-admin-room', user.id);
+      }
+    });
+
+    // Escuchar evento de nueva solicitud
+    newSocket.on('new-cancellation-request', (data) => {
+      console.log('🔔 Recibida solicitud:', data);
+      
+      // 1. Mostrar notificación
+      showToast(`Dr. ${data.doctor_name} quiere cancelar la cita #${data.appointment_id}`);
+      
+      // 2. Si estamos viendo cancelaciones, refrescar datos
+      if (activeTabRef.current === 'cancellations') {
+        loadCancellationRequests();
+      }
+      
+      // 3. Actualizar contador de pendientes en la barra de navegación (opcional pero útil)
+      // Si tienes un badge global, lo actualizarías aquí.
+    });
+
+    // Limpieza al desmontar
+    return () => {
+      newSocket.close();
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     if (activeTab === 'cancellation_reports') {

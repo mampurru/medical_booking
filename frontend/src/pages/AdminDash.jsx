@@ -415,6 +415,8 @@ const AdminDash = () => {
     // Solo super_admin ve Config
     if (isAdminSuper) {
       tabs.push({ id: 'settings', label: '⚙️ Config', icon: '⚙️' });
+      // Solo super_admin ve Reportes de Cancelaciones
+      tabs.push({ id: 'cancellation_reports', label: '📋 Reporte Cancelaciones', icon: '📋' });
     }
     
     //  ven Pendientes
@@ -425,7 +427,7 @@ const AdminDash = () => {
     return tabs;
   };
 
-  // ✅ OBTENER LABEL DEL ROL ACTUAL
+  // OBTENER LABEL DEL ROL ACTUAL
   const getRoleLabel = () => {
     const labels = {
       super_admin: 'Super Admin',
@@ -1004,6 +1006,22 @@ const AdminDash = () => {
                     )}
                   </div>
                 )}
+              </div>
+            )}
+            {/* 📋 REPORTE DE CANCELACIONES - SOLO SUPER ADMIN */}
+            {activeTab === 'cancellation_reports' && isAdminSuper && (
+              <div className="space-y-6">
+                <div className="bg-white p-4 rounded-xl shadow-sm border">
+                  <h3 className="text-lg font-semibold text-gray-800">📋 Reporte de Cancelaciones Aprobadas</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Historial de cancelaciones aprobadas por administradores
+                  </p>
+                </div>
+                
+                {/* Aquí iría la tabla con los datos del reporte */}
+                <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
+                  🚧 En construcción - Próximamente mostrará el historial completo
+                </div>
               </div>
             )}
           </>

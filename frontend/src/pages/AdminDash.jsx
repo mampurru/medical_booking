@@ -43,6 +43,9 @@ const AdminDash = () => {
   const [cancellationReports, setCancellationReports] = useState([]);
   const [reportsLoading, setReportsLoading] = useState(false);
 
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+
   // Función para mostrar notificación
   const showToast = (message) => {
     console.log('📢 Mostrando toast:', message);
@@ -70,19 +73,15 @@ const AdminDash = () => {
       setTimeout(() => toast.remove(), 500);
     }, 5000);
   };
-  //CONEXIÓN SOCKET.IO (CORREGIDO)
+  // 🔌 CONEXIÓN SOCKET.IO CON NOTIFICACIONES
   useEffect(() => {
-    // Solo conectar si hay usuario
     if (!user?.id) return;
 
-    // URL de tu backend en Railway
-    const SOCKET_URL = process.env.REACT_APP_API_URL 
-      ? process.env.REACT_APP_API_URL.replace('/api', '') 
-      : 'https://medicalbooking-production.up.railway.app';
+    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+    const SOCKET_URL = API_URL.replace('/api', '');
 
     console.log('🔌 Conectando a Socket.io:', SOCKET_URL);
 
-    // Crear conexión
     const newSocket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -99,27 +98,26 @@ const AdminDash = () => {
       console.error('❌ Error de conexión Socket:', error.message);
     });
 
-    // Escuchar evento de nueva solicitud
+    // Escuchar nueva solicitud de cancelación
     newSocket.on('new-cancellation-request', (data) => {
       console.log('🔔 [SOCKET] Recibida solicitud:', data);
       
-      // Mostrar notificación
-      showToast(`Dr. ${data.doctor_name} quiere cancelar la cita #${data.appointment_id}`);
+      // Agregar a la lista de notificaciones (al principio)
+      setNotifications(prev => [data, ...prev]);
       
-      // Si estamos en cancelaciones, refrescar
+      // Si estamos en la pestaña de cancelaciones, recargar
       if (activeTab === 'cancellations') {
         loadCancellationRequests();
       }
     });
 
-    // Limpieza: SOLO al desmontar el componente
     return () => {
       console.log('🔌 Desconectando socket...');
       if (newSocket) {
         newSocket.disconnect();
       }
     };
-  }, [user?.id]); // ⚠️ IMPORTANTE: Solo user.id, NO activeTab
+  }, [user?.id, activeTab]);
 
   useEffect(() => {
     if (activeTab === 'cancellation_reports') {
@@ -548,41 +546,143 @@ const AdminDash = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">⚙️ Panel de Administración</h1>
-              <p className="text-gray-500 text-sm">
-                {isAdminSuper && 'Acceso total al sistema'}
-                {isAdminGeneral && 'Gestión general de usuarios y citas'}
-                {isAdminEspecialidad && `Gestión de especialidad: ${user?.specialty_name || '...'}`}
-              </p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <span className="text-sm text-gray-600">
-                Hola, {user?.firstName} {user?.lastName}
+      <div className="flex items-center space-x-4">
+        {/* 🔔 CAMPANITA DE NOTIFICACIONES */}
+        <div className="relative">
+          <button 
+            onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+            className="relative p-2 text-gray-400 hover:text-gray-600 transition rounded-full hover:bg-gray-100"
+            title="Ver notificaciones"
+          >
+            {/* Ícono de campana */}
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              className="h-6 w-6" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" 
+              />
+            </svg>
+            
+            {/* Badge rojo con contador */}
+            {notifications.length > 0 && (
+              <span className="absolute top-0 right-0 block h-5 w-5 transform -translate-y-1/4 translate-x-1/4 rounded-full ring-2 ring-white bg-red-500 text-xs text-white font-bold flex items-center justify-center animate-pulse">
+                {notifications.length > 9 ? '9+' : notifications.length}
               </span>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                isAdminSuper ? 'bg-red-100 text-red-800' :
-                isAdminGeneral ? 'bg-indigo-100 text-indigo-800' :
-                isAdminEspecialidad ? 'bg-pink-100 text-pink-800' :
-                'bg-purple-100 text-purple-800'
-              }`}>
-                {getRoleLabel()}
-              </span>
-            </div> 
-            <div>
-              {/* Mostrar botón "Nuevo Doctor" solo para super_admin y admin_general */}
-              {(isAdminSuper || isAdminGeneral) && (
+            )}
+          </button>
+
+          {/* Dropdown de Notificaciones */}
+          {showNotifDropdown && (
+            <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
+              {/* Header del Dropdown */}
+              <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-600">🔔</span>
+                  <h4 className="font-bold text-gray-800 text-sm">Notificaciones</h4>
+                </div>
+                {notifications.length > 0 && (
+                  <button 
+                    onClick={() => setNotifications([])} 
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline"
+                  >
+                    Marcar todo leído
+                  </button>
+                )}
+              </div>
+              
+              {/* Lista de Notificaciones */}
+              <div className="max-h-96 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                    </svg>
+                    <p className="text-sm">No hay notificaciones nuevas</p>
+                  </div>
+                ) : (
+                  notifications.map((notif, index) => (
+                    <div 
+                      key={index} 
+                      className="p-4 border-b border-gray-100 hover:bg-blue-50 transition cursor-pointer group"
+                      onClick={() => {
+                        setActiveTab('cancellations');
+                        setShowNotifDropdown(false);
+                      }}
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* Ícono de alerta */}
+                        <div className="bg-red-100 p-2 rounded-full text-red-600 group-hover:bg-red-200 transition">
+                          <span className="text-sm">🛑</span>
+                        </div>
+                        
+                        {/* Contenido */}
+                        <div className="flex-1">
+                          <p className="text-sm text-gray-800 font-semibold">
+                            Dr. {notif.doctor_name || 'Sin nombre'}
+                          </p>
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            Solicitó cancelar cita #{notif.appointment_id}
+                          </p>
+                          {notif.reason && (
+                            <p className="text-xs text-gray-500 mt-1 italic bg-gray-50 p-1.5 rounded">
+                              "{notif.reason}"
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(notif.requested_at).toLocaleString('es-ES', { 
+                              hour: '2-digit', 
+                              minute: '2-digit',
+                              day: '2-digit',
+                              month: 'short'
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              
+              {/* Footer */}
+              <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-center">
                 <button 
-                  onClick={() => setShowDoctorForm(!showDoctorForm)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-                  + Nuevo Doctor
+                  onClick={() => {
+                    setActiveTab('cancellations');
+                    setShowNotifDropdown(false);
+                  }}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Ver todas las solicitudes →
                 </button>
-              )}
+              </div>
             </div>
+          )}
+        </div>
+
+        {/* INFO DEL USUARIO */}
+        <div className="flex items-center space-x-2 border-l pl-4">
+          <div className="hidden md:block text-right">
+            <p className="text-sm font-medium text-gray-800">
+              {user?.firstName} {user?.lastName}
+            </p>
+            <p className="text-xs text-gray-500">
+              {getRoleLabel()}
+            </p>
+          </div>
+          <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-bold shadow-md ${
+            isAdminSuper ? 'bg-gradient-to-br from-red-500 to-red-600' :
+            isAdminGeneral ? 'bg-gradient-to-br from-indigo-500 to-indigo-600' :
+            isAdminEspecialidad ? 'bg-gradient-to-br from-pink-500 to-pink-600' :
+            'bg-gradient-to-br from-purple-500 to-purple-600'
+          }`}>
+            {user?.firstName?.[0]}{user?.lastName?.[0]}
           </div>
         </div>
       </div>

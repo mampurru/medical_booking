@@ -756,7 +756,7 @@ const AdminDash = () => {
                       </div>
                     </div>
 
-                    <button className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                    <button className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
                       💾 Guardar Cambios
                     </button>
                   </div>
@@ -1029,7 +1029,7 @@ const AdminDash = () => {
               
               <input name="license_number" placeholder="N° Licencia" required className="w-full mb-4 p-2 border rounded" />
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setShowDoctorForm(false)} className="px-4 py-2 text-gray-600">Cancelar</button>
+                <button type="button" onClick={() => setShowDoctorForm(false)} className="px-4 py-2 bg-gray-600 rounded text-white">Cancelar</button>
                 <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded">Crear</button>
               </div>
             </form>

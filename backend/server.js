@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const http = require('http');  // ✅ AGREGAR ESTA LÍNEA
+const { Server } = require('socket.io');  // ✅ AGREGAR ESTA LÍNEA
 require('dotenv').config();
 
 const { testConnection } = require('./src/config/db');
@@ -11,6 +13,44 @@ const cron = require('node-cron');
 const { sendReminders } = require('./src/services/reminderService');
 
 const app = express();
+const server = http.createServer(app);
+
+// ✅ CONFIGURAR SOCKET.IO
+const io = new Server(server, {
+  cors: {
+    origin: function (origin, callback) {
+      // Permitir Vercel y localhost
+      if (!origin) return callback(null, true);
+      if (/^https:\/\/.*\.vercel\.app$/.test(origin)) return callback(null, true);
+      if (['http://localhost:3000', 'http://localhost:5000'].includes(origin)) return callback(null, true);
+      callback(new Error('CORS policy: Origen no permitido para WebSocket'), false);
+    },
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// ✅ Middleware para acceder a io en las rutas
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
+
+// ✅ Manejar conexiones de clientes
+io.on('connection', (socket) => {
+  console.log('🔌 Cliente WebSocket conectado:', socket.id);
+  
+  // Unirse a sala personal del admin
+  socket.on('join-admin-room', (userId) => {
+    socket.join(`admin-${userId}`);
+    console.log(`👤 Admin ${userId} unido a sala: admin-${userId}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('🔌 Cliente WebSocket desconectado:', socket.id);
+  });
+});
+
 const PORT = process.env.PORT || 5000;
 
 // Middlewares
@@ -74,7 +114,7 @@ const startServer = async () => {
         environment: process.env.NODE_ENV 
       });
     });
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
       console.log(`📝 Modo: ${process.env.NODE_ENV || 'development'}`);
       // Configurar Cron Job para recordatorios (cada 15 minutos)

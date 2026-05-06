@@ -110,12 +110,37 @@ router.post('/:id/cancel-request',
          VALUES ?`,
         [values]
       );
+      try {
+        const [admins] = await pool.query(
+          'SELECT id FROM users WHERE role IN (?, ?, ?)', 
+          ['super_admin', 'admin_general', 'admin_especialidad']
+        );
+
+        const notificationData = {
+          id: result.insertId,
+          doctor_name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim(),
+          appointment_id: appointment[0].id,
+          cancellation_type,
+          reason,
+          requested_at: new Date()
+        };
+
+        admins.forEach(admin => {
+          req.io.to(`admin-${admin.id}`).emit('new-cancellation-request', notificationData);
+        });
+        
+        console.log(`🔔 Notificación enviada a ${admins.length} admins`);
+      } catch (socketError) {
+        console.error('⚠️ Error emitiendo socket:', socketError);
+        // No romper la respuesta si falla el socket
+      }
 
       res.json({
         success: true,
         message: `Solicitud enviada (${appointmentsToRequest.length} cita(s)). Pendiente de aprobación del administrador.`,
         requested_count: appointmentsToRequest.length
       });
+
 
     } catch (error) {
       console.error('Error solicitando cancelación:', error);

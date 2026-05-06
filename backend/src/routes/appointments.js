@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const appointmentsController = require('../controllers/appointments');
+const { pool } = require('../config/db');
 const { verifyTokenMiddleware, authorize } = require('../middleware/auth');
 const checkRole = require('../middleware/checkRole');
 // Todas las rutas requieren autenticación

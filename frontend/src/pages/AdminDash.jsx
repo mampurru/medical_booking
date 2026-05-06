@@ -1034,16 +1034,96 @@ const AdminDash = () => {
             {/* 📋 REPORTE DE CANCELACIONES - SOLO SUPER ADMIN */}
             {activeTab === 'cancellation_reports' && isAdminSuper && (
               <div className="space-y-6">
+                {/* Header */}
                 <div className="bg-white p-4 rounded-xl shadow-sm border">
-                  <h3 className="text-lg font-semibold text-gray-800">📋 Reporte de Cancelaciones Aprobadas</h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Historial de cancelaciones aprobadas por administradores
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">📋 Reporte de Cancelaciones Aprobadas</h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Historial de cancelaciones aprobadas por administradores
+                      </p>
+                    </div>
+                    <button
+                      onClick={loadCancellationReports}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-2"
+                    >
+                      🔄 Actualizar
+                    </button>
+                  </div>
                 </div>
-                
-                {/* Aquí iría la tabla con los datos del reporte */}
-                <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
-                  🚧 En construcción - Próximamente mostrará el historial completo
+
+                {/* Tabla de Reportes */}
+                <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                  {reportsLoading ? (
+                    <div className="p-8 text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+                      <p className="text-gray-500 mt-4">Cargando reporte...</p>
+                    </div>
+                  ) : cancellationReports.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500">
+                      📭 No hay cancelaciones aprobadas registradas
+                    </div>
+                  ) : (
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Doctor</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Paciente</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Fecha Cita</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Motivo</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Aprobado Por</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Rol Admin</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Notas Admin</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Fecha Aprobación</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {cancellationReports.map((report) => (
+                          <tr key={report.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <p className="font-medium text-gray-800">
+                                {report.doctor_first_name} {report.doctor_last_name}
+                              </p>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600">
+                              Cita #{report.appointment_id}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600">
+                              {report.appointment_date 
+                                ? new Date(report.appointment_date).toLocaleString('es-ES')
+                                : 'N/A'
+                              }
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate" title={report.cancellation_reason}>
+                              {report.cancellation_reason || '-'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="font-medium text-gray-800 text-sm">
+                                {report.admin_first_name} {report.admin_last_name}
+                              </p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                report.admin_role === 'super_admin' ? 'bg-red-100 text-red-800' :
+                                report.admin_role === 'admin_general' ? 'bg-indigo-100 text-indigo-800' :
+                                'bg-pink-100 text-pink-800'
+                              }`}>
+                                {report.admin_role === 'super_admin' ? 'Super Admin' :
+                                report.admin_role === 'admin_general' ? 'Admin General' :
+                                'Admin Esp.'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600 italic max-w-xs truncate" title={report.admin_notes}>
+                              {report.admin_notes || '-'}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-500">
+                              {new Date(report.created_at).toLocaleString('es-ES')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
             )}

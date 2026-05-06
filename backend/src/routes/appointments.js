@@ -110,29 +110,36 @@ router.post('/:id/cancel-request',
          VALUES ?`,
         [values]
       );
+      // Emitir evento a todos los admins (CORREGIDO)
       try {
+        // Obtener todos los admins para notificar
         const [admins] = await pool.query(
           'SELECT id FROM users WHERE role IN (?, ?, ?)', 
           ['super_admin', 'admin_general', 'admin_especialidad']
         );
 
+        // Preparar datos de notificación (usando variables que SÍ existen en tu scope)
         const notificationData = {
-          id: result.insertId,
-          doctor_name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim(),
+          // Usamos el appointment_id que ya tenemos, no result.insertId
           appointment_id: appointment[0].id,
+          doctor_name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim(),
+          doctor_id: doctorId,
           cancellation_type,
           reason,
-          requested_at: new Date()
+          requested_at: new Date(),
+          // Si es full_day, indicamos cuántas citas se afectaron
+          affected_appointments: appointmentsToRequest.length
         };
 
+        // Emitir a cada admin
         admins.forEach(admin => {
           req.io.to(`admin-${admin.id}`).emit('new-cancellation-request', notificationData);
         });
         
         console.log(`🔔 Notificación enviada a ${admins.length} admins`);
       } catch (socketError) {
-        console.error('⚠️ Error emitiendo socket:', socketError);
         // No romper la respuesta si falla el socket
+        console.error('⚠️ Error emitiendo socket:', socketError.message);
       }
 
       res.json({

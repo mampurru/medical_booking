@@ -24,6 +24,15 @@ const AdminDash = () => {
   const [pendingUsers, setPendingUsers] = useState([]);
   const [specialties, setSpecialties] = useState([]);
 
+  // ... estados existentes ...
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [approveNote, setApproveNote] = useState('');
+  const [reassignData, setReassignData] = useState({ new_doctor_id: '', new_start_time: '', note: '' });
+  const [availableDoctors, setAvailableDoctors] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+
   // Cargar estadísticas y datos al iniciar
   useEffect(() => {
     fetchData();
@@ -182,24 +191,81 @@ const AdminDash = () => {
       alert('❌ Error: ' + error.response?.data?.message);
     }
   };
-  // ✅ Aprobar solicitud de cancelación (CON NOTA DEL ADMIN)
-  const handleApproveCancellation = async (requestId, appointmentId) => {
-    // 1. Preguntar si aprueba y si quiere dejar una nota
-    const userNote = prompt("✅ ¿Deseas agregar una nota explicativa? (Opcional)\n\nEj: 'Paciente contactado', 'Se reprogramará al lunes', etc.");
-    
-    if (userNote === null) return; // Si el usuario da "Cancelar" en el prompt, no hacemos nada
 
+  // 1. Abrir Modal de Aprobación
+  const openApproveModal = (request) => {
+    setSelectedRequest(request);
+    setApproveNote('');
+    setShowApproveModal(true);
+  };
+
+  // 2. Confirmar Aprobación (Con nota)
+  const confirmApprove = async () => {
+    if (!selectedRequest) return;
+    setIsProcessing(true);
     try {
-      const res = await api.post(`/admin/cancellation-requests/${requestId}/approve`, {
-        admin_notes: userNote // <--- Aquí enviamos la nota
+      const res = await api.post(`/admin/cancellation-requests/${selectedRequest.id}/approve`, {
+        admin_notes: approveNote
       });
-      
       if (res.data.success) {
         alert('✅ Cancelación aprobada.');
-        loadCancellationRequests(); // Recargar lista
+        setShowApproveModal(false);
+        loadCancellationRequests();
       }
     } catch (error) {
       alert('❌ Error: ' + (error.response?.data?.message || 'No se pudo aprobar'));
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // 3. Abrir Modal de Reasignación
+  const openReassignModal = async (request) => {
+    setSelectedRequest(request);
+    setReassignData({ new_doctor_id: '', new_start_time: '', note: '' });
+    
+    // Cargar doctores de la misma especialidad (o todos si es admin general)
+    try {
+      // Asumiendo que tienes un endpoint para listar doctores, si no, usa /admin/users filtrado
+      // Por ahora, usaremos una llamada genérica o la que tengas para doctores
+      // Si no tienes un endpoint específico, podemos usar /admin/users?role=doctor
+      const res = await api.get('/admin/users'); 
+      if (res.data.success) {
+        const doctors = res.data.users.filter(u => u.role === 'doctor');
+        // Filtrar por especialidad si es necesario (lógica simple)
+        setAvailableDoctors(doctors);
+      }
+    } catch (error) {
+      console.error('Error cargando doctores:', error);
+    }
+    
+    setShowReassignModal(true);
+  };
+
+  // 4. Confirmar Reasignación
+  const confirmReassign = async () => {
+    if (!selectedRequest || !reassignData.new_doctor_id || !reassignData.new_start_time) {
+      alert('Por favor selecciona un doctor y una fecha/hora.');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const res = await api.post(`/admin/cancellation-requests/${selectedRequest.id}/reassign`, {
+        new_doctor_id: reassignData.new_doctor_id,
+        new_start_time: reassignData.new_start_time,
+        admin_notes: reassignData.note
+      });
+
+      if (res.data.success) {
+        alert('✅ Cita reasignada correctamente.');
+        setShowReassignModal(false);
+        loadCancellationRequests();
+      }
+    } catch (error) {
+      alert('❌ Error: ' + (error.response?.data?.message || 'No se pudo reasignar'));
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -818,16 +884,25 @@ const AdminDash = () => {
                               <td className="px-4 py-3 text-sm text-gray-500">
                                 {new Date(req.requested_at).toLocaleString('es-ES')}
                               </td>
-                              <td className="px-4 py-3 text-right space-x-2">
+                              <td className="px-4 py-3 text-right space-x-1">
                                 <button
-                                  onClick={() => handleApproveCancellation(req.id, req.appointment_id)}
-                                  className="text-green-600 hover:text-green-800 text-sm font-medium px-3 py-1 bg-green-50 rounded"
+                                  onClick={() => openApproveModal(req)}
+                                  className="text-green-600 hover:text-green-800 text-xs font-medium px-2 py-1 bg-green-50 rounded border border-green-200"
+                                  title="Aprobar y cancelar"
                                 >
                                   ✅ Aprobar
                                 </button>
                                 <button
+                                  onClick={() => openReassignModal(req)}
+                                  className="text-blue-600 hover:text-blue-800 text-xs font-medium px-2 py-1 bg-blue-50 rounded border border-blue-200"
+                                  title="Cambiar doctor o fecha"
+                                >
+                                  🔄 Reasignar
+                                </button>
+                                <button
                                   onClick={() => handleRejectCancellation(req.id, req.appointment_id)}
-                                  className="text-red-600 hover:text-red-800 text-sm font-medium px-3 py-1 bg-red-50 rounded"
+                                  className="text-red-600 hover:text-red-800 text-xs font-medium px-2 py-1 bg-red-50 rounded border border-red-200"
+                                  title="Rechazar solicitud"
                                 >
                                   ❌ Rechazar
                                 </button>
@@ -936,7 +1011,108 @@ const AdminDash = () => {
         )}
       </div>
     </div>
+    
   );
+  {/* 🟢 MODAL DE APROBACIÓN CON NOTAS */}
+  {showApproveModal && selectedRequest && (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="bg-green-600 p-4">
+          <h3 className="text-white font-bold text-lg">✅ Aprobar Cancelación</h3>
+        </div>
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-gray-600">
+            Estás aprobando la cancelación de la cita <strong>#{selectedRequest.appointment_id}</strong>.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notas para el historial (Opcional)</label>
+            <textarea
+              value={approveNote}
+              onChange={(e) => setApproveNote(e.target.value)}
+              className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+              rows="3"
+              placeholder="Ej: Paciente contactado, se le ofrecerá reprogramación..."
+            />
+          </div>
+        </div>
+        <div className="bg-gray-50 p-4 flex justify-end gap-2">
+          <button onClick={() => setShowApproveModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded">Cancelar</button>
+          <button 
+            onClick={confirmApprove} 
+            disabled={isProcessing}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+          >
+            {isProcessing ? 'Procesando...' : 'Confirmar Aprobación'}
+          </button>
+        </div>
+      </div>
+      {/* 🔄 MODAL DE REASIGNACIÓN */}
+      {showReassignModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="bg-blue-600 p-4">
+              <h3 className="text-white font-bold text-lg">🔄 Reasignar Cita</h3>
+              <p className="text-blue-100 text-xs">Mover la cita a otro doctor o fecha</p>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Selector de Doctor */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nuevo Doctor *</label>
+                <select
+                  value={reassignData.new_doctor_id}
+                  onChange={(e) => setReassignData({...reassignData, new_doctor_id: e.target.value})}
+                  className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">Seleccionar doctor...</option>
+                  {availableDoctors.map(doc => (
+                    <option key={doc.id} value={doc.id}>
+                      Dr. {doc.first_name} {doc.last_name} 
+                      {/* Si tienes la especialidad en el objeto user, muéstrala aquí */}
+                    </option>
+                  ))}
+                </select>
+              </div>
+    
+              {/* Selector de Fecha/Hora */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nueva Fecha y Hora *</label>
+                <input
+                  type="datetime-local"
+                  value={reassignData.new_start_time}
+                  onChange={(e) => setReassignData({...reassignData, new_start_time: e.target.value})}
+                  className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">El sistema verificará si el doctor está libre.</p>
+              </div>
+    
+              {/* Notas */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notas (Opcional)</label>
+                <textarea
+                  value={reassignData.note}
+                  onChange={(e) => setReassignData({...reassignData, note: e.target.value})}
+                  className="w-full border rounded-lg p-2 text-sm outline-none"
+                  rows="2"
+                  placeholder="Motivo del cambio..."
+                />
+              </div>
+            </div>
+            <div className="bg-gray-50 p-4 flex justify-end gap-2">
+              <button onClick={() => setShowReassignModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded">Cancelar</button>
+              <button 
+                onClick={confirmReassign} 
+                disabled={isProcessing}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {isProcessing ? 'Reasignando...' : 'Confirmar Reasignación'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )}
+
 };
 
 export default AdminDash;

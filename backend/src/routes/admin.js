@@ -409,4 +409,57 @@ router.get('/cancellation-requests',
     }
   }
 );
+// 🔄 Reasignar cita (Cambia doctor y/o fecha)
+router.post('/cancellation-requests/:id/reassign',
+  verifyTokenMiddleware,
+  authorize('super_admin', 'admin_general', 'admin_especialidad'),
+  async (req, res) => {
+    const { id } = req.params;
+    const { new_doctor_id, new_start_time, admin_notes } = req.body;
+
+    try {
+      // 1. Obtener la solicitud original
+      const [request] = await pool.query('SELECT * FROM cancellation_requests WHERE id = ?', [id]);
+      if (request.length === 0) {
+        return res.status(404).json({ success: false, message: 'Solicitud no encontrada' });
+      }
+      const originalAppointmentId = request[0].appointment_id;
+
+      // 2. Verificar que el NUEVO doctor esté libre en esa fecha/hora
+      const [conflict] = await pool.query(
+        `SELECT id FROM appointments 
+         WHERE doctor_id = ? AND start_time = ? AND status != 'cancelled' AND id != ?`,
+        [new_doctor_id, new_start_time, originalAppointmentId]
+      );
+
+      if (conflict.length > 0) {
+        return res.status(400).json({ success: false, message: 'El doctor seleccionado ya tiene una cita en ese horario.' });
+      }
+
+      // 3. Actualizar la cita original (Cambiar doctor y fecha)
+      await pool.query(
+        `UPDATE appointments 
+         SET doctor_id = ?, start_time = ?, status = 'scheduled', updated_at = NOW() 
+         WHERE id = ?`,
+        [new_doctor_id, new_start_time, originalAppointmentId]
+      );
+
+      // 4. Marcar la solicitud de cancelación como "Aprobada/Resuelta"
+      await pool.query(
+        `UPDATE cancellation_requests 
+         SET status = 'approved', reviewed_by = ?, reviewed_at = NOW(), admin_notes = ? 
+         WHERE id = ?`,
+        [req.user.id, `REASIGNADA: Doctor ID ${new_doctor_id}, Nueva Hora: ${new_start_time}. Notas: ${admin_notes || ''}`, id]
+      );
+
+      // TODO: Aquí iría el email al paciente avisando del cambio
+
+      res.json({ success: true, message: 'Cita reasignada correctamente' });
+
+    } catch (error) {
+      console.error('Error reasignando cita:', error);
+      res.status(500).json({ success: false, message: 'Error del servidor' });
+    }
+  }
+);
 module.exports = router;

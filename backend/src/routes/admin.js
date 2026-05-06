@@ -495,4 +495,35 @@ router.post('/cancellation-requests/:id/reassign',
     }
   }
 );
+// 📊 NUEVO: Reporte de cancelaciones aprobadas (Solo Super Admin)
+router.get('/cancellation-reports',
+  verifyTokenMiddleware,
+  authorize('super_admin'),
+  async (req, res) => {
+    try {
+      const [reports] = await pool.query(`
+        SELECT 
+          cal.*,
+          u.first_name as admin_first_name,
+          u.last_name as admin_last_name,
+          u.role as admin_role,
+          d.first_name as doctor_first_name,
+          d.last_name as doctor_last_name,
+          cr.reason as cancellation_reason,
+          a.start_time as appointment_date
+        FROM cancellation_audit_log cal
+        JOIN users u ON cal.approved_by = u.id
+        JOIN users d ON cal.doctor_id = d.id
+        JOIN cancellation_requests cr ON cal.request_id = cr.id
+        LEFT JOIN appointments a ON cal.appointment_id = a.id
+        ORDER BY cal.created_at DESC
+      `);
+      
+      res.json({ success: true, reports });
+    } catch (error) {
+      console.error('Error obteniendo reporte:', error);
+      res.status(500).json({ success: false, message: 'Error del servidor' });
+    }
+  }
+);
 module.exports = router;

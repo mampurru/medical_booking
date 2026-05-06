@@ -33,6 +33,15 @@ const AdminDash = () => {
   const [availableDoctors, setAvailableDoctors] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const [cancellationReports, setCancellationReports] = useState([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'cancellation_reports') {
+      loadCancellationReports();
+    }
+  }, [activeTab]);
+
   // Cargar estadísticas y datos al iniciar
   useEffect(() => {
     fetchData();
@@ -75,6 +84,20 @@ const AdminDash = () => {
   
     }
   }, [activeTab]);
+
+  const loadCancellationReports = async () => {
+    setReportsLoading(true);
+    try {
+      const res = await api.get('/admin/cancellation-reports');
+      if (res.data.success) {
+        setCancellationReports(res.data.reports || []);
+      }
+    } catch (error) {
+      console.error('Error cargando reportes:', error);
+    } finally {
+      setReportsLoading(false);
+    }
+  };
 
   const loadSpecialties = async () => {
     try {

@@ -7,9 +7,15 @@ const DoctorDash = () => {
   const { user } = useAuth();
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false); // ✅ Nuevo estado para modal de cancelación
   const [doctorId, setDoctorId] = useState(null);
   const [clinicalNotes, setClinicalNotes] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  
+  // Estados para el modal de cancelación
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelType, setCancelType] = useState('single'); // 'single' o 'full_day'
+  const [isCanceling, setIsCanceling] = useState(false);
 
   // Obtener ID del doctor al cargar
   useEffect(() => {
@@ -70,20 +76,41 @@ const DoctorDash = () => {
     }
   };
 
-  // Cancelar cita
-  const handleCancelAppointment = async () => {
-    if (!selectedAppointment) return;
+  // ✅ ABRIR modal de solicitud de cancelación (en lugar de cancelar directo)
+  const handleRequestCancel = () => {
+    setCancelReason('');
+    setCancelType('single');
+    setShowCancelModal(true);
+  };
+
+  // ✅ ENVIAR solicitud de cancelación al backend
+  const handleSubmitCancelRequest = async () => {
+    if (!selectedAppointment || !cancelReason.trim()) return;
     
-    if (!window.confirm('¿Cancelar esta cita?')) return;
-    
+    setIsCanceling(true);
     try {
-      await api.put(`/appointments/${selectedAppointment.id}/cancel`);
-      alert('✅ Cita cancelada');
-      setShowModal(false);
-      window.location.reload();
+      const res = await api.post(`/appointments/${selectedAppointment.id}/cancel-request`, {
+        reason: cancelReason.trim(),
+        cancellation_type: cancelType
+      });
+
+      if (res.data.success) {
+        alert(`✅ Solicitud enviada (${res.data.requested_count} cita(s)). Pendiente de aprobación del administrador.`);
+        setShowCancelModal(false);
+        setShowModal(false);
+        window.location.reload();
+      }
     } catch (error) {
-      alert('❌ Error al cancelar');
+      alert('❌ Error: ' + (error.response?.data?.message || 'No se pudo enviar la solicitud'));
+    } finally {
+      setIsCanceling(false);
     }
+  };
+
+  // Cancelar cita (método antiguo - por si acaso, pero no se usa)
+  const handleCancelAppointment = async () => {
+    // Este método ya no se usa, pero lo dejamos por compatibilidad
+    handleRequestCancel();
   };
 
   // Formatear fecha
@@ -131,7 +158,7 @@ const DoctorDash = () => {
         userId={doctorId}
         userRole="doctor"
         onEventClick={handleEventClick}
-        onViewDateChange={null} // Los doctores no crean citas desde aquí
+        onViewDateChange={null}
       />
 
       {/* Modal de Detalles de Cita */}
@@ -231,18 +258,111 @@ const DoctorDash = () => {
                 </>
               )}
               
-              <button
-                onClick={handleCancelAppointment}
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition"
-              >
-                ❌ Cancelar Cita
-              </button>
+              {/* ✅ Botón de Cancelar ahora abre el modal de solicitud */}
+              {selectedAppointment.status === 'scheduled' && (
+                <button
+                  onClick={handleRequestCancel}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition"
+                >
+                  ❌ Solicitar Cancelación
+                </button>
+              )}
               
               <button
                 onClick={() => setShowModal(false)}
                 className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition"
               >
                 Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ MODAL DE SOLICITUD DE CANCELACIÓN */}
+      {showCancelModal && selectedAppointment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-2xl">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-600 to-red-700 p-4">
+              <h3 className="text-white text-lg font-bold">🛑 Solicitar Cancelación</h3>
+              <p className="text-red-100 text-sm mt-1">
+                Cita con {selectedAppointment.patient_name}
+              </p>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 space-y-4">
+              {/* Tipo de cancelación */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de cancelación:</label>
+                <div className="space-y-2">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="cancellation_type"
+                      value="single"
+                      checked={cancelType === 'single'}
+                      onChange={(e) => setCancelType(e.target.value)}
+                      className="text-red-600 focus:ring-red-500"
+                    />
+                    <span className="text-sm text-gray-700">Solo esta cita</span>
+                  </label>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="cancellation_type"
+                      value="full_day"
+                      checked={cancelType === 'full_day'}
+                      onChange={(e) => setCancelType(e.target.value)}
+                      className="text-red-600 focus:ring-red-500"
+                    />
+                    <span className="text-sm text-gray-700">Todas mis citas de este día (emergencia)</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Motivo */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Motivo *</label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  rows={4}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                  placeholder="Describe brevemente el motivo de la cancelación..."
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  El administrador revisará tu solicitud antes de aprobarla.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 p-4 border-t flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCancelModal(false)}
+                disabled={isCanceling}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitCancelRequest}
+                disabled={isCanceling || !cancelReason.trim()}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-red-400 transition flex items-center"
+              >
+                {isCanceling ? (
+                  <>
+                    <span className="animate-spin mr-2">⏳</span>
+                    Enviando...
+                  </>
+                ) : (
+                  'Enviar Solicitud'
+                )}
               </button>
             </div>
           </div>

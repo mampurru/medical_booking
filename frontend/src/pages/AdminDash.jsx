@@ -43,14 +43,17 @@ const AdminDash = () => {
   const [cancellationReports, setCancellationReports] = useState([]);
   const [reportsLoading, setReportsLoading] = useState(false);
 
-  // Función para mostrar notificación tipo "Toast"
+  // Función para mostrar notificación
   const showToast = (message) => {
-    const existingToast = document.getElementById('admin-toast');
-    if (existingToast) existingToast.remove();
+    console.log('📢 Mostrando toast:', message);
+    
+    // Remover toast anterior si existe
+    const existing = document.getElementById('admin-toast');
+    if (existing) existing.remove();
 
     const toast = document.createElement('div');
     toast.id = 'admin-toast';
-    toast.className = 'fixed top-4 right-4 bg-blue-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[9999] flex items-center gap-3 animate-bounce';
+    toast.className = 'fixed top-4 right-4 bg-blue-600 text-white px-6 py-4 rounded-lg shadow-2xl z-[9999] flex items-center gap-3';
     toast.innerHTML = `
       <span class="text-2xl">🔔</span>
       <div>
@@ -61,52 +64,62 @@ const AdminDash = () => {
     
     document.body.appendChild(toast);
     
-    // Remover después de 5 segundos
     setTimeout(() => {
       toast.style.opacity = '0';
       toast.style.transition = 'opacity 0.5s';
       setTimeout(() => toast.remove(), 500);
     }, 5000);
   };
-  // CONEXIÓN SOCKET.IO
+  //CONEXIÓN SOCKET.IO (CORREGIDO)
   useEffect(() => {
-    // URL de tu backend en Railway (sin /api)
+    // Solo conectar si hay usuario
+    if (!user?.id) return;
+
+    // URL de tu backend en Railway
     const SOCKET_URL = process.env.REACT_APP_API_URL 
       ? process.env.REACT_APP_API_URL.replace('/api', '') 
       : 'https://medicalbooking-production.up.railway.app';
 
+    console.log('🔌 Conectando a Socket.io:', SOCKET_URL);
+
+    // Crear conexión
     const newSocket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
     });
 
     newSocket.on('connect', () => {
-      console.log('✅ Socket conectado');
-      if (user?.id) {
-        newSocket.emit('join-admin-room', user.id);
-      }
+      console.log('✅ Socket conectado:', newSocket.id);
+      newSocket.emit('join-admin-room', user.id);
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('❌ Error de conexión Socket:', error.message);
     });
 
     // Escuchar evento de nueva solicitud
     newSocket.on('new-cancellation-request', (data) => {
-      console.log('🔔 Recibida solicitud:', data);
+      console.log('🔔 [SOCKET] Recibida solicitud:', data);
       
-      // 1. Mostrar notificación
+      // Mostrar notificación
       showToast(`Dr. ${data.doctor_name} quiere cancelar la cita #${data.appointment_id}`);
       
-      // 2. Si estamos viendo cancelaciones, refrescar datos
-      if (activeTabRef.current === 'cancellations') {
+      // Si estamos en cancelaciones, refrescar
+      if (activeTab === 'cancellations') {
         loadCancellationRequests();
       }
-      
-      // 3. Actualizar contador de pendientes en la barra de navegación (opcional pero útil)
-      // Si tienes un badge global, lo actualizarías aquí.
     });
 
-    // Limpieza al desmontar
+    // Limpieza: SOLO al desmontar el componente
     return () => {
-      newSocket.close();
+      console.log('🔌 Desconectando socket...');
+      if (newSocket) {
+        newSocket.disconnect();
+      }
     };
-  }, [user?.id]);
+  }, [user?.id]); // ⚠️ IMPORTANTE: Solo user.id, NO activeTab
 
   useEffect(() => {
     if (activeTab === 'cancellation_reports') {

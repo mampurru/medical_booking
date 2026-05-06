@@ -546,140 +546,109 @@ const AdminDash = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="flex items-center space-x-4">
-        {/* INFO DEL USUARIO (ahora va primero a la izquierda) */}
-        <div className="flex items-center space-x-3">
-          <div className="hidden md:block text-right">
-            <p className="text-sm font-medium text-gray-800">
-              {user?.firstName} {user?.lastName}
-            </p>
-            <p className="text-xs text-gray-500">
-              {getRoleLabel()}
-            </p>
-          </div>
-          <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-bold shadow-md ${
-            isAdminSuper ? 'bg-gradient-to-br from-red-500 to-red-600' :
-            isAdminGeneral ? 'bg-gradient-to-br from-indigo-500 to-indigo-600' :
-            isAdminEspecialidad ? 'bg-gradient-to-br from-pink-500 to-pink-600' :
-            'bg-gradient-to-br from-purple-500 to-purple-600'
-          }`}>
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
-          </div>
-        </div>
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            {/* Lado izquierdo: Título */}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">⚙️ Panel de Administración</h1>
+              <p className="text-gray-500 text-sm">
+                {isAdminSuper && 'Acceso total al sistema'}
+                {isAdminGeneral && 'Gestión general de usuarios y citas'}
+                {isAdminEspecialidad && `Gestión de especialidad: ${user?.specialty_name || '...'}`}
+              </p>
+            </div>
 
-        {/* 🔔 CAMPANITA DE NOTIFICACIONES (ahora va a la derecha) */}
-        <div className="relative">
-          <button 
-            onClick={() => setShowNotifDropdown(!showNotifDropdown)}
-            className="relative p-2 text-gray-400 hover:text-gray-600 transition rounded-full hover:bg-gray-100"
-            title="Ver notificaciones"
-          >
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              className="h-6 w-6" 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" 
-              />
-            </svg>
-            
-            {notifications.length > 0 && (
-              <span className="absolute top-0 right-0 block h-5 w-5 transform -translate-y-1/4 translate-x-1/4 rounded-full ring-2 ring-white bg-red-500 text-xs text-white font-bold flex items-center justify-center animate-pulse">
-                {notifications.length > 9 ? '9+' : notifications.length}
-              </span>
-            )}
-          </button>
+            {/* Lado derecho: Info usuario + Avatar + Campanita */}
+            <div className="flex items-center space-x-4">
+              {/* Info del usuario (texto) */}
+              <div className="hidden md:block text-right">
+                <p className="text-sm font-medium text-gray-800">{user?.firstName} {user?.lastName}</p>
+                <p className="text-xs text-gray-500">{getRoleLabel()}</p>
+              </div>
 
-          {/* Dropdown de Notificaciones - Cambiado a left-0 para que se alinee a la derecha */}
-          {showNotifDropdown && (
-            <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
-              {/* ... el contenido del dropdown sigue igual ... */}
-              <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <span className="text-blue-600">🔔</span>
-                  <h4 className="font-bold text-gray-800 text-sm">Notificaciones</h4>
-                </div>
-                {notifications.length > 0 && (
-                  <button 
-                    onClick={() => setNotifications([])} 
-                    className="text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline"
-                  >
-                    Marcar todo leído
-                  </button>
-                )}
+              {/* Avatar */}
+              <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-bold shadow-md ${
+                isAdminSuper ? 'bg-gradient-to-br from-red-500 to-red-600' :
+                isAdminGeneral ? 'bg-gradient-to-br from-indigo-500 to-indigo-600' :
+                isAdminEspecialidad ? 'bg-gradient-to-br from-pink-500 to-pink-600' :
+                'bg-gradient-to-br from-purple-500 to-purple-600'
+              }`}>
+                {user?.firstName?.[0]}{user?.lastName?.[0]}
               </div>
-              
-              <div className="max-h-96 overflow-y-auto">
-                {notifications.length === 0 ? (
-                  <div className="p-8 text-center text-gray-400">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                    </svg>
-                    <p className="text-sm">No hay notificaciones nuevas</p>
-                  </div>
-                ) : (
-                  notifications.map((notif, index) => (
-                    <div 
-                      key={index} 
-                      className="p-4 border-b border-gray-100 hover:bg-blue-50 transition cursor-pointer group"
-                      onClick={() => {
-                        setActiveTab('cancellations');
-                        setShowNotifDropdown(false);
-                      }}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="bg-red-100 p-2 rounded-full text-red-600 group-hover:bg-red-200 transition">
-                          <span className="text-sm">🛑</span>
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm text-gray-800 font-semibold">
-                            Dr. {notif.doctor_name || 'Sin nombre'}
-                          </p>
-                          <p className="text-xs text-gray-600 mt-0.5">
-                            Solicitó cancelar cita #{notif.appointment_id}
-                          </p>
-                          {notif.reason && (
-                            <p className="text-xs text-gray-500 mt-1 italic bg-gray-50 p-1.5 rounded">
-                              "{notif.reason}"
-                            </p>
-                          )}
-                          <p className="text-xs text-gray-400 mt-1">
-                            {new Date(notif.requested_at).toLocaleString('es-ES', { 
-                              hour: '2-digit', 
-                              minute: '2-digit',
-                              day: '2-digit',
-                              month: 'short'
-                            })}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              
-              <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-center">
+
+              {/* 🔔 Campanita de notificaciones */}
+              <div className="relative">
                 <button 
-                  onClick={() => {
-                    setActiveTab('cancellations');
-                    setShowNotifDropdown(false);
-                  }}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+                  className="relative p-2 text-gray-400 hover:text-gray-600 transition rounded-full hover:bg-gray-100"
+                  title="Ver notificaciones"
                 >
-                  Ver todas las solicitudes →
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  {notifications.length > 0 && (
+                    <span className="absolute top-0 right-0 block h-5 w-5 transform -translate-y-1/4 translate-x-1/4 rounded-full ring-2 ring-white bg-red-500 text-xs text-white font-bold flex items-center justify-center animate-pulse">
+                      {notifications.length > 9 ? '9+' : notifications.length}
+                    </span>
+                  )}
                 </button>
+
+                {/* Dropdown de Notificaciones */}
+                {showNotifDropdown && (
+                  <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
+                    <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="text-blue-600">🔔</span>
+                        <h4 className="font-bold text-gray-800 text-sm">Notificaciones</h4>
+                      </div>
+                      {notifications.length > 0 && (
+                        <button onClick={() => setNotifications([])} className="text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline">
+                          Marcar todo leído
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-96 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center text-gray-400">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                          </svg>
+                          <p className="text-sm">No hay notificaciones nuevas</p>
+                        </div>
+                      ) : (
+                        notifications.map((notif, index) => (
+                          <div key={index} className="p-4 border-b border-gray-100 hover:bg-blue-50 transition cursor-pointer group"
+                            onClick={() => { setActiveTab('cancellations'); setShowNotifDropdown(false); }}>
+                            <div className="flex items-start gap-3">
+                              <div className="bg-red-100 p-2 rounded-full text-red-600 group-hover:bg-red-200 transition">
+                                <span className="text-sm">🛑</span>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm text-gray-800 font-semibold">Dr. {notif.doctor_name || 'Sin nombre'}</p>
+                                <p className="text-xs text-gray-600 mt-0.5">Solicitó cancelar cita #{notif.appointment_id}</p>
+                                {notif.reason && <p className="text-xs text-gray-500 mt-1 italic bg-gray-50 p-1.5 rounded">"{notif.reason}"</p>}
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {new Date(notif.requested_at).toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-center">
+                      <button onClick={() => { setActiveTab('cancellations'); setShowNotifDropdown(false); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                        Ver todas las solicitudes →
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
-
       {/* Tabs de navegación - DINÁMICOS */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4">

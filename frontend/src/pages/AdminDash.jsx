@@ -547,14 +547,33 @@ const AdminDash = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="flex items-center space-x-4">
-        {/* 🔔 CAMPANITA DE NOTIFICACIONES */}
+        {/* INFO DEL USUARIO (ahora va primero a la izquierda) */}
+        <div className="flex items-center space-x-3">
+          <div className="hidden md:block text-right">
+            <p className="text-sm font-medium text-gray-800">
+              {user?.firstName} {user?.lastName}
+            </p>
+            <p className="text-xs text-gray-500">
+              {getRoleLabel()}
+            </p>
+          </div>
+          <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-bold shadow-md ${
+            isAdminSuper ? 'bg-gradient-to-br from-red-500 to-red-600' :
+            isAdminGeneral ? 'bg-gradient-to-br from-indigo-500 to-indigo-600' :
+            isAdminEspecialidad ? 'bg-gradient-to-br from-pink-500 to-pink-600' :
+            'bg-gradient-to-br from-purple-500 to-purple-600'
+          }`}>
+            {user?.firstName?.[0]}{user?.lastName?.[0]}
+          </div>
+        </div>
+
+        {/* 🔔 CAMPANITA DE NOTIFICACIONES (ahora va a la derecha) */}
         <div className="relative">
           <button 
             onClick={() => setShowNotifDropdown(!showNotifDropdown)}
             className="relative p-2 text-gray-400 hover:text-gray-600 transition rounded-full hover:bg-gray-100"
             title="Ver notificaciones"
           >
-            {/* Ícono de campana */}
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
               className="h-6 w-6" 
@@ -570,7 +589,6 @@ const AdminDash = () => {
               />
             </svg>
             
-            {/* Badge rojo con contador */}
             {notifications.length > 0 && (
               <span className="absolute top-0 right-0 block h-5 w-5 transform -translate-y-1/4 translate-x-1/4 rounded-full ring-2 ring-white bg-red-500 text-xs text-white font-bold flex items-center justify-center animate-pulse">
                 {notifications.length > 9 ? '9+' : notifications.length}
@@ -578,10 +596,10 @@ const AdminDash = () => {
             )}
           </button>
 
-          {/* Dropdown de Notificaciones */}
+          {/* Dropdown de Notificaciones - Cambiado a left-0 para que se alinee a la derecha */}
           {showNotifDropdown && (
             <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
-              {/* Header del Dropdown */}
+              {/* ... el contenido del dropdown sigue igual ... */}
               <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <span className="text-blue-600">🔔</span>
@@ -597,7 +615,6 @@ const AdminDash = () => {
                 )}
               </div>
               
-              {/* Lista de Notificaciones */}
               <div className="max-h-96 overflow-y-auto">
                 {notifications.length === 0 ? (
                   <div className="p-8 text-center text-gray-400">
@@ -617,12 +634,9 @@ const AdminDash = () => {
                       }}
                     >
                       <div className="flex items-start gap-3">
-                        {/* Ícono de alerta */}
                         <div className="bg-red-100 p-2 rounded-full text-red-600 group-hover:bg-red-200 transition">
                           <span className="text-sm">🛑</span>
                         </div>
-                        
-                        {/* Contenido */}
                         <div className="flex-1">
                           <p className="text-sm text-gray-800 font-semibold">
                             Dr. {notif.doctor_name || 'Sin nombre'}
@@ -650,7 +664,6 @@ const AdminDash = () => {
                 )}
               </div>
               
-              {/* Footer */}
               <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-center">
                 <button 
                   onClick={() => {
@@ -664,26 +677,6 @@ const AdminDash = () => {
               </div>
             </div>
           )}
-        </div>
-
-        {/* INFO DEL USUARIO */}
-        <div className="flex items-center space-x-2 border-l pl-4">
-          <div className="hidden md:block text-right">
-            <p className="text-sm font-medium text-gray-800">
-              {user?.firstName} {user?.lastName}
-            </p>
-            <p className="text-xs text-gray-500">
-              {getRoleLabel()}
-            </p>
-          </div>
-          <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-bold shadow-md ${
-            isAdminSuper ? 'bg-gradient-to-br from-red-500 to-red-600' :
-            isAdminGeneral ? 'bg-gradient-to-br from-indigo-500 to-indigo-600' :
-            isAdminEspecialidad ? 'bg-gradient-to-br from-pink-500 to-pink-600' :
-            'bg-gradient-to-br from-purple-500 to-purple-600'
-          }`}>
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
-          </div>
         </div>
       </div>
 

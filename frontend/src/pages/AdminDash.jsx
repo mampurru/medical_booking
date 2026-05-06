@@ -576,7 +576,7 @@ const AdminDash = () => {
                     onClick={fetchData}
                     className="ml-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
                   >
-                    🔄 Actualizar
+                    Actualizar
                   </button>
                 </div>
 
@@ -643,9 +643,9 @@ const AdminDash = () => {
                   </button>
                   <button
                     onClick={fetchData}
-                    className="ml-auto px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
+                    className="ml-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
                   >
-                    🔄 Actualizar
+                    Actualizar
                   </button>
                 </div>
 
@@ -831,7 +831,7 @@ const AdminDash = () => {
                       onClick={loadCancellationRequests}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm flex items-center gap-2"
                     >
-                      🔄 Actualizar Ahora
+                      Actualizar Ahora
                     </button>
                   </div>
                 </div>

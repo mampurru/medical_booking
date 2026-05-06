@@ -574,7 +574,7 @@ const AdminDash = () => {
                   </select>
                   <button
                     onClick={fetchData}
-                    className="ml-auto px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
+                    className="ml-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
                   >
                     🔄 Actualizar
                   </button>
@@ -827,9 +827,9 @@ const AdminDash = () => {
                         </span>
                       </p>
                     </div>
-                    <button
+                    <button 
                       onClick={loadCancellationRequests}
-                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm flex items-center gap-2"
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm flex items-center gap-2"
                     >
                       🔄 Actualizar Ahora
                     </button>

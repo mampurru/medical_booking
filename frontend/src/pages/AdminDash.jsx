@@ -65,6 +65,14 @@ const AdminDash = () => {
   useEffect(() => {
     if (activeTab === 'cancellations') {
       loadCancellationRequests();
+      //  Auto-refresh cada 30 segundos
+      const interval = setInterval(() => {
+        loadCancellationRequests();
+      }, 30000); // 30000 ms = 30 segundos
+      
+      // Limpiar el intervalo al desmontar
+      return () => clearInterval(interval);
+  
     }
   }, [activeTab]);
 
@@ -809,10 +817,23 @@ const AdminDash = () => {
               <div className="space-y-6">
                 {/* Header */}
                 <div className="bg-white p-4 rounded-xl shadow-sm border">
-                  <h3 className="text-lg font-semibold text-gray-800">Gestión de Cancelaciones</h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Revisa y aprueba/rechaza las solicitudes de cancelación de los doctores
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">Gestión de Cancelaciones</h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Revisa y aprueba/rechaza las solicitudes de cancelación de los doctores
+                        <span className="ml-2 text-xs text-gray-400">
+                          (Se actualiza automáticamente cada 30 segundos)
+                        </span>
+                      </p>
+                    </div>
+                    <button
+                      onClick={loadCancellationRequests}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-2"
+                    >
+                      🔄 Actualizar Ahora
+                    </button>
+                  </div>
                 </div>
 
                 {/* Tabs: Pendientes / Historial */}

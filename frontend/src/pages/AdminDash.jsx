@@ -182,17 +182,20 @@ const AdminDash = () => {
       alert('❌ Error: ' + error.response?.data?.message);
     }
   };
-  // ✅ Aprobar solicitud de cancelación
-  const handleApproveCancellation = async (requestId, appointmentId, adminNotes = '') => {
-    if (!window.confirm('¿Aprobar esta cancelación? Se notificará al paciente.')) return;
+  // ✅ Aprobar solicitud de cancelación (CON NOTA DEL ADMIN)
+  const handleApproveCancellation = async (requestId, appointmentId) => {
+    // 1. Preguntar si aprueba y si quiere dejar una nota
+    const userNote = prompt("✅ ¿Deseas agregar una nota explicativa? (Opcional)\n\nEj: 'Paciente contactado', 'Se reprogramará al lunes', etc.");
     
+    if (userNote === null) return; // Si el usuario da "Cancelar" en el prompt, no hacemos nada
+
     try {
       const res = await api.post(`/admin/cancellation-requests/${requestId}/approve`, {
-        admin_notes: adminNotes
+        admin_notes: userNote // <--- Aquí enviamos la nota
       });
       
       if (res.data.success) {
-        alert('✅ Cancelación aprobada. Se ha notificado al paciente.');
+        alert('✅ Cancelación aprobada.');
         loadCancellationRequests(); // Recargar lista
       }
     } catch (error) {

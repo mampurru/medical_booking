@@ -271,7 +271,12 @@ const AdminDash = () => {
 
   // ❌ Rechazar solicitud de cancelación
   const handleRejectCancellation = async (requestId, appointmentId) => {
-    const adminNotes = prompt('Motivo del rechazo (opcional):');
+    const adminNotes = prompt('Motivo del rechazo (opcional):\n\nSi cancelas, NO se rechazará la solicitud.');
+    
+    // ✅ Si el usuario da clic en "Cancelar", NO hacer nada
+    if (adminNotes === null) {
+      return; // Salir de la función sin hacer nada
+    }
     
     try {
       const res = await api.post(`/admin/cancellation-requests/${requestId}/reject`, {

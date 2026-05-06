@@ -112,34 +112,44 @@ router.post('/:id/cancel-request',
       );
       // Emitir evento a todos los admins (CORREGIDO)
       try {
-        // Obtener todos los admins para notificar
+        // 1. Obtener el nombre real del doctor desde la BD
+        const [doctorData] = await pool.query(
+          'SELECT first_name, last_name FROM users WHERE id = ?', 
+          [req.user.id]
+        );
+        
+        const doctorFullName = doctorData.length > 0 
+          ? `${doctorData[0].first_name} ${doctorData[0].last_name}` 
+          : 'Un Doctor';
+
+        // 2. Obtener todos los admins para notificar
         const [admins] = await pool.query(
           'SELECT id FROM users WHERE role IN (?, ?, ?)', 
           ['super_admin', 'admin_general', 'admin_especialidad']
         );
 
-        // Preparar datos de notificación (usando variables que SÍ existen en tu scope)
+        // 3. Preparar datos de notificación
         const notificationData = {
-          // Usamos el appointment_id que ya tenemos, no result.insertId
+          id: Date.now(), // ID único para la notificación
           appointment_id: appointment[0].id,
-          doctor_name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim(),
           doctor_id: doctorId,
+          doctor_name: doctorFullName,  // ✅ Ahora sí tiene el nombre real
           cancellation_type,
           reason,
           requested_at: new Date(),
-          // Si es full_day, indicamos cuántas citas se afectaron
           affected_appointments: appointmentsToRequest.length
         };
 
-        // Emitir a cada admin
+        // 4. Emitir a cada admin
         admins.forEach(admin => {
           req.io.to(`admin-${admin.id}`).emit('new-cancellation-request', notificationData);
         });
         
-        console.log(`🔔 Notificación enviada a ${admins.length} admins`);
+        console.log(`🔔 Notificación enviada a ${admins.length} admins: Doctor ${doctorFullName}`);
+        
       } catch (socketError) {
-        // No romper la respuesta si falla el socket
         console.error('⚠️ Error emitiendo socket:', socketError.message);
+        // No romper la respuesta si falla el socket
       }
 
       res.json({

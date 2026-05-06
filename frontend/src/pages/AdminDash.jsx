@@ -12,6 +12,8 @@ const AdminDash = () => {
   const isAdminEspecialidad = user?.role === 'admin_especialidad';
   const userSpecialtyId = user?.specialty_id;
 
+  const [cancellationRequests, setCancellationRequests] = useState([]);
+  const [activeCancelTab, setActiveCancelTab] = useState('pending'); // 'pending' o 'history'
   const [stats, setStats] = useState({});
   const [users, setUsers] = useState([]);
   const [appointments, setAppointments] = useState([]);
@@ -37,6 +39,25 @@ const AdminDash = () => {
       loadPendingUsers();
     }
   }, [activeTab, isAdminSuper, isAdminGeneral]);
+
+  const loadCancellationRequests = async () => {
+    try {
+      const res = await api.get('/admin/cancellation-requests');
+      if (res.data.success) {
+        setCancellationRequests(res.data.requests || []);
+      }
+    } catch (error) {
+      console.error('Error cargando cancelaciones:', error);
+      setCancellationRequests([]);
+    }
+  };
+
+  // Cargar cuando se active la pestaña de cancelaciones
+  useEffect(() => {
+    if (activeTab === 'cancellations') {
+      loadCancellationRequests();
+    }
+  }, [activeTab]);
 
   const loadSpecialties = async () => {
     try {
@@ -161,6 +182,41 @@ const AdminDash = () => {
       alert('❌ Error: ' + error.response?.data?.message);
     }
   };
+  // ✅ Aprobar solicitud de cancelación
+  const handleApproveCancellation = async (requestId, appointmentId, adminNotes = '') => {
+    if (!window.confirm('¿Aprobar esta cancelación? Se notificará al paciente.')) return;
+    
+    try {
+      const res = await api.post(`/admin/cancellation-requests/${requestId}/approve`, {
+        admin_notes: adminNotes
+      });
+      
+      if (res.data.success) {
+        alert('✅ Cancelación aprobada. Se ha notificado al paciente.');
+        loadCancellationRequests(); // Recargar lista
+      }
+    } catch (error) {
+      alert('❌ Error: ' + (error.response?.data?.message || 'No se pudo aprobar'));
+    }
+  };
+
+  // ❌ Rechazar solicitud de cancelación
+  const handleRejectCancellation = async (requestId, appointmentId) => {
+    const adminNotes = prompt('Motivo del rechazo (opcional):');
+    
+    try {
+      const res = await api.post(`/admin/cancellation-requests/${requestId}/reject`, {
+        admin_notes: adminNotes || ''
+      });
+      
+      if (res.data.success) {
+        alert('❌ Cancelación rechazada. La cita sigue programada.');
+        loadCancellationRequests(); // Recargar lista
+      }
+    } catch (error) {
+      alert('❌ Error: ' + (error.response?.data?.message || 'No se pudo rechazar'));
+    }
+  };
 
   // Formatear fecha
   const formatDate = (dateString) => {
@@ -271,6 +327,7 @@ const AdminDash = () => {
       { id: 'users', label: '👥 Usuarios', icon: '👥' },
       { id: 'appointments', label: '📅 Citas', icon: '📅' },
       { id: 'reports', label: '📈 Reportes', icon: '📈' },
+      { id: 'cancellations', label: '🚫 Cancelaciones', icon: '🚫' }, // ✅ NUEVA
     ];
     
     // Solo super_admin ve Config
@@ -670,6 +727,178 @@ const AdminDash = () => {
                       ))}
                     </tbody>
                   </table>
+                )}
+              </div>
+            )}
+            {/* 🚫 CANCELACIONES - PARA TODOS LOS ADMINS */}
+            {activeTab === 'cancellations' && (isAdminSuper || isAdminGeneral || isAdminEspecialidad) && (
+              <div className="space-y-6">
+                {/* Header */}
+                <div className="bg-white p-4 rounded-xl shadow-sm border">
+                  <h3 className="text-lg font-semibold text-gray-800">Gestión de Cancelaciones</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Revisa y aprueba/rechaza las solicitudes de cancelación de los doctores
+                  </p>
+                </div>
+
+                {/* Tabs: Pendientes / Historial */}
+                <div className="bg-white border-b">
+                  <nav className="flex space-x-8">
+                    <button
+                      onClick={() => setActiveCancelTab('pending')}
+                      className={`py-3 px-1 border-b-2 font-medium text-sm transition ${
+                        activeCancelTab === 'pending'
+                          ? 'border-red-600 text-red-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      ⏳ Pendientes ({cancellationRequests.filter(r => r.status === 'pending').length})
+                    </button>
+                    <button
+                      onClick={() => setActiveCancelTab('history')}
+                      className={`py-3 px-1 border-b-2 font-medium text-sm transition ${
+                        activeCancelTab === 'history'
+                          ? 'border-green-600 text-green-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      📋 Historial ({cancellationRequests.filter(r => r.status !== 'pending').length})
+                    </button>
+                  </nav>
+                </div>
+
+                {/* Contenido de Pendientes */}
+                {activeCancelTab === 'pending' && (
+                  <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    {cancellationRequests.filter(r => r.status === 'pending').length === 0 ? (
+                      <div className="p-8 text-center text-gray-500">
+                        ✅ No hay solicitudes pendientes
+                      </div>
+                    ) : (
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Doctor</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Paciente</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Fecha Cita</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Tipo</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Motivo</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Solicitado</th>
+                            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {cancellationRequests.filter(r => r.status === 'pending').map(req => (
+                            <tr key={req.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3">
+                                <p className="font-medium text-gray-800">{req.doctor_first_name} {req.doctor_last_name}</p>
+                              </td>
+                              <td className="px-4 py-3">
+                                <p className="font-medium text-gray-800">{req.patient_first_name} {req.patient_last_name}</p>
+                                <p className="text-xs text-gray-500">Cita #{req.appointment_id}</p>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {new Date(req.start_time || Date.now()).toLocaleString('es-ES')}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                  req.cancellation_type === 'full_day' 
+                                    ? 'bg-red-100 text-red-800' 
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {req.cancellation_type === 'full_day' ? '🔴 Día completo' : ' Cita única'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate" title={req.reason}>
+                                {req.reason}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-500">
+                                {new Date(req.requested_at).toLocaleString('es-ES')}
+                              </td>
+                              <td className="px-4 py-3 text-right space-x-2">
+                                <button
+                                  onClick={() => handleApproveCancellation(req.id, req.appointment_id)}
+                                  className="text-green-600 hover:text-green-800 text-sm font-medium px-3 py-1 bg-green-50 rounded"
+                                >
+                                  ✅ Aprobar
+                                </button>
+                                <button
+                                  onClick={() => handleRejectCancellation(req.id, req.appointment_id)}
+                                  className="text-red-600 hover:text-red-800 text-sm font-medium px-3 py-1 bg-red-50 rounded"
+                                >
+                                  ❌ Rechazar
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
+
+                {/* Contenido de Historial */}
+                {activeCancelTab === 'history' && (
+                  <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    {cancellationRequests.filter(r => r.status !== 'pending').length === 0 ? (
+                      <div className="p-8 text-center text-gray-500">
+                        📋 No hay historial de cancelaciones
+                      </div>
+                    ) : (
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Doctor</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Paciente</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Tipo</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Motivo</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Estado</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Revisado por</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Notas Admin</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {cancellationRequests.filter(r => r.status !== 'pending').map(req => (
+                            <tr key={req.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3">
+                                <p className="font-medium text-gray-800">{req.doctor_first_name} {req.doctor_last_name}</p>
+                              </td>
+                              <td className="px-4 py-3">
+                                <p className="font-medium text-gray-800">{req.patient_first_name} {req.patient_last_name}</p>
+                              </td>
+                              <td className="px-4 py-3 text-sm">
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                  req.cancellation_type === 'full_day' 
+                                    ? 'bg-red-100 text-red-800' 
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {req.cancellation_type === 'full_day' ? 'Día completo' : 'Cita única'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate" title={req.reason}>
+                                {req.reason}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                  req.status === 'approved' 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {req.status === 'approved' ? '✅ Aprobada' : '❌ Rechazada'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-500">
+                                {req.reviewed_at ? new Date(req.reviewed_at).toLocaleString('es-ES') : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600 italic">
+                                {req.admin_notes || '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
                 )}
               </div>
             )}

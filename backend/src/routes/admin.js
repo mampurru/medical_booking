@@ -309,24 +309,57 @@ router.post('/cancellation-requests/:id/approve',
 
     try {
       // 1. Verificar que la solicitud existe y está pendiente
-      const [request] = await pool.query('SELECT * FROM cancellation_requests WHERE id = ? AND status = "pending"', [id]);
+      const [request] = await pool.query(
+        'SELECT * FROM cancellation_requests WHERE id = ? AND status = "pending"', 
+        [id]
+      );
       if (request.length === 0) {
-        return res.status(404).json({ success: false, message: 'Solicitud no encontrada o ya procesada' });
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Solicitud no encontrada o ya procesada' 
+        });
       }
 
       const cancellation = request[0];
 
-      // 2. Actualizar estado de la solicitud
+      // 2. Obtener información del admin que aprueba
+      const [adminInfo] = await pool.query(
+        'SELECT first_name, last_name, role FROM users WHERE id = ?',
+        [req.user.id]
+      );
+
+      // 3. Actualizar estado de la solicitud
       await pool.query(
-        'UPDATE cancellation_requests SET status = "approved", reviewed_by = ?, reviewed_at = NOW(), admin_notes = ? WHERE id = ?',
+        `UPDATE cancellation_requests 
+         SET status = "approved", reviewed_by = ?, reviewed_at = NOW(), admin_notes = ? 
+         WHERE id = ?`,
         [req.user.id, admin_notes || '', id]
       );
 
-      // 3. Actualizar la cita a 'cancelled'
-      await pool.query('UPDATE appointments SET status = "cancelled" WHERE id = ?', [cancellation.appointment_id]);
+      // 4. Actualizar la cita a 'cancelled'
+      await pool.query(
+        'UPDATE appointments SET status = "cancelled" WHERE id = ?', 
+        [cancellation.appointment_id]
+      );
 
-      // 4. TODO: Aquí iría el envío de email al paciente y reporte al Super Admin
-      console.log(` Cancelación aprobada para cita ${cancellation.appointment_id}. Enviando emails...`);
+      // 5. 🔔 CREAR REGISTRO DE AUDITORÍA PARA SUPER ADMIN
+      await pool.query(
+        `INSERT INTO cancellation_audit_log 
+         (request_id, appointment_id, doctor_id, approved_by, approved_by_role, 
+          admin_notes, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+        [
+          id, 
+          cancellation.appointment_id, 
+          cancellation.doctor_id, 
+          req.user.id,
+          adminInfo[0]?.role || 'unknown',
+          admin_notes || ''
+        ]
+      );
+
+      // 6. 📧 TODO: Enviar email al paciente y al super admin
+      // await sendEmailToSuperAdmin({...});
 
       res.json({
         success: true,

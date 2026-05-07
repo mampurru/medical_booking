@@ -17,12 +17,12 @@ const server = http.createServer(app);
 
 // ✅ CONFIGURAR SOCKET.IO
 const io = new Server(server, {
-  cors: {
+  cors: { 
     origin: function (origin, callback) {
       // Permitir Vercel y localhost
       if (!origin) return callback(null, true);
       if (/^https:\/\/.*\.vercel\.app$/.test(origin)) return callback(null, true);
-      if (['http://localhost:3000', 'http://localhost:5000'].includes(origin)) return callback(null, true);
+      if (['http://localhost:3000', 'http://localhost:5000','https://medical-booking-plum.vercel.app'].includes(origin)) return callback(null, true);
       callback(new Error('CORS policy: Origen no permitido para WebSocket'), false);
     },
     methods: ['GET', 'POST'],

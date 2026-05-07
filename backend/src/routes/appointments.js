@@ -110,42 +110,68 @@ router.post('/:id/cancel-request',
          VALUES ?`,
         [values]
       );
-      // Emitir evento a todos los admins (CORREGIDO)
+      //  Emitir notificación SEGÚN el tipo de doctor (INTELIGENTE)
       try {
-        // 1. Obtener el nombre real del doctor desde la BD
-        const [doctorData] = await pool.query(
-          'SELECT first_name, last_name FROM users WHERE id = ?', 
-          [req.user.id]
-        );
-        
-        const doctorFullName = doctorData.length > 0 
-          ? `${doctorData[0].first_name} ${doctorData[0].last_name}` 
-          : 'Un Doctor';
+        // 1. Obtener info completa del doctor (incluyendo especialidad)
+        const [doctorInfo] = await pool.query(`
+          SELECT d.id, d.specialty_id, u.first_name, u.last_name
+          FROM doctors d
+          JOIN users u ON d.user_id = u.id
+          WHERE d.id = ?
+        `, [doctorId]);
 
-        // 2. Obtener todos los admins para notificar
-        const [admins] = await pool.query(
-          'SELECT id FROM users WHERE role IN (?, ?, ?)', 
-          ['super_admin', 'admin_general', 'admin_especialidad']
-        );
+        const doctor = doctorInfo[0];
+        const isSpecialist = doctor?.specialty_id !== null && doctor?.specialty_id !== undefined;
+
+        // 2. Determinar a qué admins notificar
+        let adminIds = [];
+        
+        // Siempre notificar al super_admin
+        const [superAdmins] = await pool.query('SELECT id FROM users WHERE role = "super_admin"');
+        adminIds.push(...superAdmins.map(a => a.id));
+
+        if (isSpecialist) {
+          // Si es especialista → notificar admin_especialidad de ESA especialidad
+          const [specialtyAdmins] = await pool.query(
+            'SELECT id FROM users WHERE role = "admin_especialidad" AND specialty_id = ?',
+            [doctor.specialty_id]
+          );
+          adminIds.push(...specialtyAdmins.map(a => a.id));
+        } else {
+          // Si es general → notificar admin_general
+          const [generalAdmins] = await pool.query('SELECT id FROM users WHERE role = "admin_general"');
+          adminIds.push(...generalAdmins.map(a => a.id));
+        }
 
         // 3. Preparar datos de notificación
         const notificationData = {
-          id: Date.now(), // ID único para la notificación
-          appointment_id: appointment[0].id,
-          doctor_id: doctorId,
-          doctor_name: doctorFullName,  // ✅ Ahora sí tiene el nombre real
-          cancellation_type,
-          reason,
-          requested_at: new Date(),
-          affected_appointments: appointmentsToRequest.length
+          type: 'cancellation_request',
+          title: 'Nueva solicitud de cancelación',
+          message: `Dr. ${doctor?.first_name || ''} ${doctor?.last_name || ''} solicitó cancelar cita #${appointment[0].id}`,
+          data: {
+            doctor_id: doctorId,
+            doctor_name: `${doctor?.first_name || ''} ${doctor?.last_name || ''}`.trim(),
+            appointment_id: appointment[0].id,
+            cancellation_type,
+            reason,
+            specialty_id: doctor?.specialty_id
+          }
         };
 
-        // 4. Emitir a cada admin
-        admins.forEach(admin => {
-          req.io.to(`admin-${admin.id}`).emit('new-cancellation-request', notificationData);
-        });
-        
-        console.log(`🔔 Notificación enviada a ${admins.length} admins: Doctor ${doctorFullName}`);
+        // 4. Insertar en BD y emitir por socket para cada admin
+        for (const adminId of adminIds) {
+          // Guardar en base de datos (persistente)
+          await pool.query(
+            `INSERT INTO admin_notifications (admin_id, type, title, message, data)
+            VALUES (?, ?, ?, ?, ?)`,
+            [adminId, notificationData.type, notificationData.title, notificationData.message, JSON.stringify(notificationData.data)]
+          );
+
+          // Emitir por socket solo a ese admin específico
+          req.io.to(`admin-${adminId}`).emit('new-notification', notificationData);
+        }
+
+        console.log(`🔔 Notificación inteligente enviada a ${adminIds.length} admins`);
         
       } catch (socketError) {
         console.error('⚠️ Error emitiendo socket:', socketError.message);

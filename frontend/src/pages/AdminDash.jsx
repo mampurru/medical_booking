@@ -89,17 +89,7 @@ const AdminDash = () => {
     }
   };
 
-  // Escuchar socket
-  newSocket.on('new-notification', (data) => {
-    console.log('🔔 Nueva notificación:', data);
-    setNotifications(prev => [data, ...prev]);
-    setUnreadCount(prev => prev + 1);
-    
-    // Si estamos en cancelaciones, recargar
-    if (activeTab === 'cancellations') {
-      loadCancellationRequests();
-    }
-  });
+
 
   // Cargar al iniciar
   useEffect(() => {
@@ -160,14 +150,22 @@ const AdminDash = () => {
       console.error('❌ Error de conexión Socket:', error.message);
     });
 
-    // Escuchar nueva solicitud de cancelación
-    newSocket.on('new-cancellation-request', (data) => {
-      console.log('🔔 [SOCKET] Recibida solicitud:', data);
+    // ✅ Escuchar notificaciones inteligentes (NUEVO)
+    newSocket.on('new-notification', (data) => {
+      console.log('🔔 [NOTIFICACIÓN] Recibida:', data);
+      setNotifications(prev => [data, ...prev]);
+      setUnreadCount(prev => prev + 1);
       
-      // Agregar a la lista de notificaciones (al principio)
+      if (activeTab === 'cancellations') {
+        loadCancellationRequests();
+      }
+    });
+
+    // ✅ Escuchar solicitud de cancelación (LEGACY - por compatibilidad)
+    newSocket.on('new-cancellation-request', (data) => {
+      console.log('🔔 [LEGACY] Recibida solicitud:', data);
       setNotifications(prev => [data, ...prev]);
       
-      // Si estamos en la pestaña de cancelaciones, recargar
       if (activeTab === 'cancellations') {
         loadCancellationRequests();
       }

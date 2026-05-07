@@ -526,4 +526,70 @@ router.get('/cancellation-reports',
     }
   }
 );
+// 📬 Obtener notificaciones del admin actual
+router.get('/notifications',
+  verifyTokenMiddleware,
+  async (req, res) => {
+    try {
+      const [notifications] = await pool.query(
+        `SELECT * FROM admin_notifications 
+         WHERE admin_id = ? 
+         ORDER BY created_at DESC 
+         LIMIT 50`,
+        [req.user.id]
+      );
+
+      const [unread] = await pool.query(
+        `SELECT COUNT(*) as count FROM admin_notifications 
+         WHERE admin_id = ? AND is_read = FALSE`,
+        [req.user.id]
+      );
+
+      res.json({
+        success: true,
+        notifications,
+        unreadCount: unread[0].count
+      });
+    } catch (error) {
+      console.error('Error obteniendo notificaciones:', error);
+      res.status(500).json({ success: false, message: 'Error del servidor' });
+    }
+  }
+);
+
+// ✅ Marcar notificación como leída
+router.put('/notifications/:id/read',
+  verifyTokenMiddleware,
+  async (req, res) => {
+    try {
+      await pool.query(
+        `UPDATE admin_notifications 
+         SET is_read = TRUE 
+         WHERE id = ? AND admin_id = ?`,
+        [req.params.id, req.user.id]
+      );
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ success: false, message: 'Error del servidor' });
+    }
+  }
+);
+
+// ✅ Marcar todas como leídas
+router.put('/notifications/read-all',
+  verifyTokenMiddleware,
+  async (req, res) => {
+    try {
+      await pool.query(
+        `UPDATE admin_notifications 
+         SET is_read = TRUE 
+         WHERE admin_id = ?`,
+        [req.user.id]
+      );
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ success: false, message: 'Error del servidor' });
+    }
+  }
+);
 module.exports = router;

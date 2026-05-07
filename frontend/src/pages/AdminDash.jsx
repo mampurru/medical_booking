@@ -46,8 +46,67 @@ const AdminDash = () => {
   const [notifications, setNotifications] = useState([]);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
+  const [unreadCount, setUnreadCount] = useState(0);
+
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectNote, setRejectNote] = useState('');
+
+  // Cargar notificaciones del backend
+  const loadNotifications = async () => {
+    try {
+      const res = await api.get('/admin/notifications');
+      if (res.data.success) {
+        setNotifications(res.data.notifications || []);
+        setUnreadCount(res.data.unreadCount || 0);
+      }
+    } catch (error) {
+      console.error('Error cargando notificaciones:', error);
+    }
+  };
+
+  // Marcar como leída
+  const markAsRead = async (notificationId) => {
+    try {
+      await api.put(`/admin/notifications/${notificationId}/read`);
+      // Actualizar estado local
+      setNotifications(prev => 
+        prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marcando como leída:', error);
+    }
+  };
+
+  // Marcar todas como leídas
+  const markAllAsRead = async () => {
+    try {
+      await api.put('/admin/notifications/read-all');
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marcando todas como leídas:', error);
+    }
+  };
+
+  // Escuchar socket
+  newSocket.on('new-notification', (data) => {
+    console.log('🔔 Nueva notificación:', data);
+    setNotifications(prev => [data, ...prev]);
+    setUnreadCount(prev => prev + 1);
+    
+    // Si estamos en cancelaciones, recargar
+    if (activeTab === 'cancellations') {
+      loadCancellationRequests();
+    }
+  });
+
+  // Cargar al iniciar
+  useEffect(() => {
+    if (user?.id) {
+      loadNotifications();
+    }
+  }, [user?.id]);
 
   // Función para mostrar notificación
   const showToast = (message) => {
@@ -603,54 +662,69 @@ const AdminDash = () => {
 
                 {/* Dropdown de Notificaciones */}
                 {showNotifDropdown && (
-                  <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
-                    <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <span className="text-blue-600">🔔</span>
-                        <h4 className="font-bold text-gray-800 text-sm">Notificaciones</h4>
-                      </div>
-                      {notifications.length > 0 && (
-                        <button onClick={() => setNotifications([])} className="text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline">
-                          Marcar todo leído
-                        </button>
-                      )}
+                <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
+                  <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <span className="text-blue-600">🔔</span>
+                      <h4 className="font-bold text-gray-800 text-sm">
+                        Notificaciones {unreadCount > 0 && `(${unreadCount})`}
+                      </h4>
                     </div>
-                    <div className="max-h-96 overflow-y-auto">
-                      {notifications.length === 0 ? (
-                        <div className="p-8 text-center text-gray-400">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                          </svg>
-                          <p className="text-sm">No hay notificaciones nuevas</p>
-                        </div>
-                      ) : (
-                        notifications.map((notif, index) => (
-                          <div key={index} className="p-4 border-b border-gray-100 hover:bg-blue-50 transition cursor-pointer group"
-                            onClick={() => { setActiveTab('cancellations'); setShowNotifDropdown(false); }}>
-                            <div className="flex items-start gap-3">
-                              <div className="bg-red-100 p-2 rounded-full text-red-600 group-hover:bg-red-200 transition">
-                                <span className="text-sm">🛑</span>
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm text-gray-800 font-semibold">Dr. {notif.doctor_name || 'Sin nombre'}</p>
-                                <p className="text-xs text-gray-600 mt-0.5">Solicitó cancelar cita #{notif.appointment_id}</p>
-                                {notif.reason && <p className="text-xs text-gray-500 mt-1 italic bg-gray-50 p-1.5 rounded">"{notif.reason}"</p>}
-                                <p className="text-xs text-gray-400 mt-1">
-                                  {new Date(notif.requested_at).toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-center">
-                      <button onClick={() => { setActiveTab('cancellations'); setShowNotifDropdown(false); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                        Ver todas las solicitudes →
+                    {unreadCount > 0 && (
+                      <button 
+                        onClick={markAllAsRead} 
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline"
+                      >
+                        Marcar todo leído
                       </button>
-                    </div>
+                    )}
                   </div>
-                )}
+                  
+                  <div className="max-h-96 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="p-8 text-center text-gray-400">
+                        <p className="text-sm">No hay notificaciones</p>
+                      </div>
+                    ) : (
+                      notifications.map((notif) => (
+                        <div 
+                          key={notif.id} 
+                          className={`p-4 border-b border-gray-100 hover:bg-blue-50 transition cursor-pointer group ${
+                            !notif.is_read ? 'bg-blue-50/50' : ''
+                          }`}
+                          onClick={() => {
+                            markAsRead(notif.id);
+                            setActiveTab('cancellations');
+                            setShowNotifDropdown(false);
+                          }}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`p-2 rounded-full ${
+                              !notif.is_read ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              <span className="text-sm">🔔</span>
+                            </div>
+                            <div className="flex-1">
+                              <p className={`text-sm font-semibold ${
+                                !notif.is_read ? 'text-gray-900' : 'text-gray-700'
+                              }`}>
+                                {notif.title}
+                              </p>
+                              <p className="text-xs text-gray-600 mt-0.5">{notif.message}</p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {new Date(notif.created_at).toLocaleString('es-ES')}
+                              </p>
+                            </div>
+                            {!notif.is_read && (
+                              <span className="h-2 w-2 bg-red-500 rounded-full"></span>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
               </div>
             </div>
           </div>

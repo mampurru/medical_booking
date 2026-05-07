@@ -46,6 +46,9 @@ const AdminDash = () => {
   const [notifications, setNotifications] = useState([]);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectNote, setRejectNote] = useState('');
+
   // Función para mostrar notificación
   const showToast = (message) => {
     console.log('📢 Mostrando toast:', message);
@@ -150,6 +153,31 @@ const AdminDash = () => {
     } catch (error) {
       console.error('Error cargando cancelaciones:', error);
       setCancellationRequests([]);
+    }
+  };
+  const openRejectModal = (request) => {
+    setSelectedRequest(request);
+    setRejectNote('');
+    setShowRejectModal(true);
+  };
+  const confirmReject = async () => {
+  if (!selectedRequest) return;
+  
+  setIsProcessing(true);
+    try {
+      const res = await api.post(`/admin/cancellation-requests/${selectedRequest.id}/reject`, {
+        admin_notes: rejectNote || ''
+      });
+      
+      if (res.data.success) {
+        alert('❌ Cancelación rechazada. La cita sigue programada.');
+        setShowRejectModal(false);
+        loadCancellationRequests(); // Recargar lista (esto la quita de pendientes)
+      }
+    } catch (error) {
+      alert('❌ Error: ' + (error.response?.data?.message || 'No se pudo rechazar'));
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -383,28 +411,7 @@ const AdminDash = () => {
     }
   };
 
-  // ❌ Rechazar solicitud de cancelación
-  const handleRejectCancellation = async (requestId, appointmentId) => {
-    const adminNotes = prompt('Motivo del rechazo (opcional):\n\nSi cancelas, NO se rechazará la solicitud.');
-    
-    // ✅ Si el usuario da clic en "Cancelar", NO hacer nada
-    if (adminNotes === null) {
-      return; // Salir de la función sin hacer nada
-    }
-    
-    try {
-      const res = await api.post(`/admin/cancellation-requests/${requestId}/reject`, {
-        admin_notes: adminNotes || ''
-      });
-      
-      if (res.data.success) {
-        alert('❌ Cancelación rechazada. La cita sigue programada.');
-        loadCancellationRequests(); // Recargar lista
-      }
-    } catch (error) {
-      alert('❌ Error: ' + (error.response?.data?.message || 'No se pudo rechazar'));
-    }
-  };
+  
 
   // Formatear fecha
   const formatDate = (dateString) => {
@@ -1098,7 +1105,7 @@ const AdminDash = () => {
                                   🔄 Reasignar
                                 </button>
                                 <button
-                                  onClick={() => handleRejectCancellation(req.id, req.appointment_id)}
+                                  onClick={() =>  openRejectModal(req)}
                                   className="text-red-600 hover:text-red-800 text-xs font-medium px-2 py-1 bg-red-50 rounded border border-red-200"
                                   title="Rechazar solicitud"
                                 >
@@ -1194,7 +1201,7 @@ const AdminDash = () => {
                       onClick={loadCancellationReports}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm flex items-center gap-2"
                     >
-                      🔄 Actualizar
+                      Actualizar
                     </button>
                   </div>
                 </div>
@@ -1398,6 +1405,50 @@ const AdminDash = () => {
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
               >
                 {isProcessing ? 'Reasignando...' : 'Confirmar Reasignación'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 🔴 MODAL DE RECHAZO */}
+      {showRejectModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-red-600 p-4">
+              <h3 className="text-white font-bold text-lg">❌ Rechazar Cancelación</h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                Estás rechazando la solicitud de cancelación de la cita <strong>#{selectedRequest.appointment_id}</strong>.
+                <br /><br />
+                <span className="text-red-600 font-semibold">La cita seguirá programada.</span>
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Motivo del rechazo (Opcional)
+                </label>
+                <textarea
+                  value={rejectNote}
+                  onChange={(e) => setRejectNote(e.target.value)}
+                  className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-red-500 outline-none"
+                  rows="3"
+                  placeholder="Ej: El doctor debe atender esta cita, no hay disponibilidad para reprogramar..."
+                />
+              </div>
+            </div>
+            <div className="bg-gray-50 p-4 flex justify-end gap-2">
+              <button 
+                onClick={() => setShowRejectModal(false)} 
+                className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmReject} 
+                disabled={isProcessing}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+              >
+                {isProcessing ? 'Procesando...' : '✅ Confirmar Rechazo'}
               </button>
             </div>
           </div>

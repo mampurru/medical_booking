@@ -57,6 +57,9 @@ router.post('/:id/cancel-request',
   verifyTokenMiddleware,
   authorize('doctor'),
   async (req, res) => {
+    console.log('📝 Solicitud de cancelación recibida');
+    console.log('👨‍⚕️ Doctor ID:', doctorId);
+    console.log('📋 Appointment ID:', appointment[0].id);
     const { id } = req.params;
     const { reason, cancellation_type = 'single' } = req.body;
 
@@ -110,9 +113,9 @@ router.post('/:id/cancel-request',
          VALUES ?`,
         [values]
       );
-      //  Emitir notificación SEGÚN el tipo de doctor (INTELIGENTE)
+      // 🔔 Emitir notificación SEGÚN el tipo de doctor
       try {
-        // 1. Obtener info completa del doctor (incluyendo especialidad)
+        // 1. Obtener info completa del doctor
         const [doctorInfo] = await pool.query(`
           SELECT d.id, d.specialty_id, u.first_name, u.last_name
           FROM doctors d
@@ -126,9 +129,10 @@ router.post('/:id/cancel-request',
         // 2. Determinar a qué admins notificar
         let adminIds = [];
         
-        // Siempre notificar al super_admin
+        // ✅ SIEMPRE notificar al super_admin
         const [superAdmins] = await pool.query('SELECT id FROM users WHERE role = "super_admin"');
         adminIds.push(...superAdmins.map(a => a.id));
+        console.log(` Super admins notificados: ${superAdmins.length}`);
 
         if (isSpecialist) {
           // Si es especialista → notificar admin_especialidad de ESA especialidad
@@ -137,10 +141,12 @@ router.post('/:id/cancel-request',
             [doctor.specialty_id]
           );
           adminIds.push(...specialtyAdmins.map(a => a.id));
+          console.log(`📌 Admins de especialidad notificados: ${specialtyAdmins.length}`);
         } else {
-          // Si es general → notificar admin_general
+          // ✅ Si es general → notificar admin_general
           const [generalAdmins] = await pool.query('SELECT id FROM users WHERE role = "admin_general"');
           adminIds.push(...generalAdmins.map(a => a.id));
+          console.log(`📌 Admins generales notificados: ${generalAdmins.length}`);
         }
 
         // 3. Preparar datos de notificación
@@ -158,24 +164,23 @@ router.post('/:id/cancel-request',
           }
         };
 
-        // 4. Insertar en BD y emitir por socket para cada admin
+        // 4. Insertar en BD y emitir por socket
         for (const adminId of adminIds) {
-          // Guardar en base de datos (persistente)
           await pool.query(
             `INSERT INTO admin_notifications (admin_id, type, title, message, data)
             VALUES (?, ?, ?, ?, ?)`,
             [adminId, notificationData.type, notificationData.title, notificationData.message, JSON.stringify(notificationData.data)]
           );
 
-          // Emitir por socket solo a ese admin específico
           req.io.to(`admin-${adminId}`).emit('new-notification', notificationData);
         }
 
-        console.log(`🔔 Notificación inteligente enviada a ${adminIds.length} admins`);
+        console.log(`🔔 Total notificaciones enviadas: ${adminIds.length}`);
+        console.log('🔍 Doctor info:', doctor);
+        console.log('🎯 ¿Es especialista?', isSpecialist);
         
       } catch (socketError) {
         console.error('⚠️ Error emitiendo socket:', socketError.message);
-        // No romper la respuesta si falla el socket
       }
 
       res.json({

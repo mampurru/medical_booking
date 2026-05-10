@@ -136,7 +136,7 @@ router.post('/:id/cancel-request',
         if (isSpecialist) {
           const [specialtyAdmins] = await pool.query(
             'SELECT id FROM users WHERE role = "admin_especialidad" AND specialty_id = ?',
-            [doctor.specialty_id]
+            //[doctor.specialty_id]
           );
           adminIds.push(...specialtyAdmins.map(a => a.id));
         } else {

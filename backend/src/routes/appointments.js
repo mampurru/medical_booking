@@ -68,13 +68,114 @@ router.post('/:id/cancel-request',
       if (!['single', 'full_day'].includes(cancellation_type)) {
         return res.status(400).json({ success: false, message: 'Tipo de cancelación no válido' });
       }
-
+      
       // 2. Obtener doctor_id del usuario actual
       const [doctorRows] = await pool.query('SELECT id FROM doctors WHERE user_id = ?', [req.user.id]);
       if (doctorRows.length === 0) {
         return res.status(400).json({ success: false, message: 'Usuario no asociado a un perfil de doctor' });
       }
       const doctorId = doctorRows[0].id;
+      // 🔔 Emitir notificación (VERSIÓN DEBUG - más segura)
+      try {
+        console.log('📝 [DEBUG] Iniciando notificación para doctorId:', doctorId);
+  
+        // 1. Obtener info del doctor
+        const [doctorInfo] = await pool.query(`
+          SELECT d.id, d.specialty_id, u.first_name, u.last_name
+          FROM doctors d
+          JOIN users u ON d.user_id = u.id
+          WHERE d.id = ?
+        `, [doctorId]);
+  
+        if (doctorInfo.length === 0) {
+          console.warn('⚠️ Doctor no encontrado en BD');
+          // Continuar sin notificaciones inteligentes
+        }
+  
+        const doctor = doctorInfo[0] || {};
+        const isSpecialist = doctor.specialty_id != null; // null o undefined
+        console.log('🔍 Doctor:', doctor.first_name, '¿Especialista?', isSpecialist);
+  
+        // 2. Determinar admins a notificar
+        let adminIds = [];
+        
+        // Siempre super_admin
+        try {
+          const [superAdmins] = await pool.query('SELECT id FROM users WHERE role = "super_admin"');
+          adminIds.push(...superAdmins.map(a => a.id));
+          console.log(`✅ Super admins: ${superAdmins.length}`);
+        } catch (e) {
+          console.error('❌ Error obteniendo super_admins:', e.message);
+        }
+  
+        if (isSpecialist) {
+          try {
+            const [specialtyAdmins] = await pool.query(
+              'SELECT id FROM users WHERE role = "admin_especialidad" AND specialty_id = ?',
+              [doctor.specialty_id]
+            );
+            adminIds.push(...specialtyAdmins.map(a => a.id));
+            console.log(`✅ Admins especialidad: ${specialtyAdmins.length}`);
+          } catch (e) {
+            console.error('❌ Error obteniendo admins especialidad:', e.message);
+          }
+        } else {
+          try {
+            const [generalAdmins] = await pool.query('SELECT id FROM users WHERE role = "admin_general"');
+            adminIds.push(...generalAdmins.map(a => a.id));
+            console.log(`✅ Admins generales: ${generalAdmins.length}`);
+          } catch (e) {
+            console.error('❌ Error obteniendo admin_general:', e.message);
+          }
+        }
+  
+        console.log(`📊 Total adminIds a notificar: ${adminIds.length}`, adminIds);
+  
+        // 3. Preparar datos
+        const notificationData = {
+          type: 'cancellation_request',
+          title: 'Nueva solicitud de cancelación',
+          message: `Dr. ${doctor.first_name || ''} ${doctor.last_name || ''} solicitó cancelar cita #${appointment[0].id}`,
+          data: {
+            doctor_id: doctorId,
+            doctor_name: `${doctor.first_name || ''} ${doctor.last_name || ''}`.trim(),
+            appointment_id: appointment[0].id,
+            cancellation_type,
+            reason,
+            specialty_id: doctor.specialty_id
+          }
+        };
+  
+        // 4. Insertar y emitir (solo si la tabla existe)
+        for (const adminId of adminIds) {
+          try {
+            // Intentar insertar en BD
+            await pool.query(
+              `INSERT INTO admin_notifications (admin_id, type, title, message, data)
+              VALUES (?, ?, ?, ?, ?)`,
+              [adminId, notificationData.type, notificationData.title, notificationData.message, JSON.stringify(notificationData.data)]
+            );
+            console.log(`💾 Notificación guardada para admin ${adminId}`);
+          } catch (dbError) {
+            console.warn('⚠️ No se pudo guardar en admin_notifications (¿tabla no existe?):', dbError.message);
+            // Continuar aunque falle la BD
+          }
+  
+          // Emitir por socket (esto siempre debería funcionar)
+          try {
+            req.io.to(`admin-${adminId}`).emit('new-notification', notificationData);
+            console.log(`📡 Socket emitido a admin-${adminId}`);
+          } catch (socketError) {
+            console.error('❌ Error emitiendo socket:', socketError.message);
+          }
+        }
+  
+        console.log('🔔 Notificaciones procesadas exitosamente');
+        
+      } catch (error) {
+        console.error('💥 ERROR CRÍTICO en notificaciones:', error);
+        // NO romper la respuesta principal
+      }
 
       // 3. Verificar que la cita pertenece al doctor y está programada
       const [appointment] = await pool.query(
@@ -113,107 +214,6 @@ router.post('/:id/cancel-request',
          VALUES ?`,
         [values]
       );
-      // 🔔 Emitir notificación (VERSIÓN DEBUG - más segura)
-      try {
-        console.log('📝 [DEBUG] Iniciando notificación para doctorId:', doctorId);
-
-        // 1. Obtener info del doctor
-        const [doctorInfo] = await pool.query(`
-          SELECT d.id, d.specialty_id, u.first_name, u.last_name
-          FROM doctors d
-          JOIN users u ON d.user_id = u.id
-          WHERE d.id = ?
-        `, [doctorId]);
-
-        if (doctorInfo.length === 0) {
-          console.warn('⚠️ Doctor no encontrado en BD');
-          // Continuar sin notificaciones inteligentes
-        }
-
-        const doctor = doctorInfo[0] || {};
-        const isSpecialist = doctor.specialty_id != null; // null o undefined
-        console.log('🔍 Doctor:', doctor.first_name, '¿Especialista?', isSpecialist);
-
-        // 2. Determinar admins a notificar
-        let adminIds = [];
-        
-        // Siempre super_admin
-        try {
-          const [superAdmins] = await pool.query('SELECT id FROM users WHERE role = "super_admin"');
-          adminIds.push(...superAdmins.map(a => a.id));
-          console.log(`✅ Super admins: ${superAdmins.length}`);
-        } catch (e) {
-          console.error('❌ Error obteniendo super_admins:', e.message);
-        }
-
-        if (isSpecialist) {
-          try {
-            const [specialtyAdmins] = await pool.query(
-              'SELECT id FROM users WHERE role = "admin_especialidad" AND specialty_id = ?',
-              [doctor.specialty_id]
-            );
-            adminIds.push(...specialtyAdmins.map(a => a.id));
-            console.log(`✅ Admins especialidad: ${specialtyAdmins.length}`);
-          } catch (e) {
-            console.error('❌ Error obteniendo admins especialidad:', e.message);
-          }
-        } else {
-          try {
-            const [generalAdmins] = await pool.query('SELECT id FROM users WHERE role = "admin_general"');
-            adminIds.push(...generalAdmins.map(a => a.id));
-            console.log(`✅ Admins generales: ${generalAdmins.length}`);
-          } catch (e) {
-            console.error('❌ Error obteniendo admin_general:', e.message);
-          }
-        }
-
-        console.log(`📊 Total adminIds a notificar: ${adminIds.length}`, adminIds);
-
-        // 3. Preparar datos
-        const notificationData = {
-          type: 'cancellation_request',
-          title: 'Nueva solicitud de cancelación',
-          message: `Dr. ${doctor.first_name || ''} ${doctor.last_name || ''} solicitó cancelar cita #${appointment[0].id}`,
-          data: {
-            doctor_id: doctorId,
-            doctor_name: `${doctor.first_name || ''} ${doctor.last_name || ''}`.trim(),
-            appointment_id: appointment[0].id,
-            cancellation_type,
-            reason,
-            specialty_id: doctor.specialty_id
-          }
-        };
-
-        // 4. Insertar y emitir (solo si la tabla existe)
-        for (const adminId of adminIds) {
-          try {
-            // Intentar insertar en BD
-            await pool.query(
-              `INSERT INTO admin_notifications (admin_id, type, title, message, data)
-              VALUES (?, ?, ?, ?, ?)`,
-              [adminId, notificationData.type, notificationData.title, notificationData.message, JSON.stringify(notificationData.data)]
-            );
-            console.log(`💾 Notificación guardada para admin ${adminId}`);
-          } catch (dbError) {
-            console.warn('⚠️ No se pudo guardar en admin_notifications (¿tabla no existe?):', dbError.message);
-            // Continuar aunque falle la BD
-          }
-
-          // Emitir por socket (esto siempre debería funcionar)
-          try {
-            req.io.to(`admin-${adminId}`).emit('new-notification', notificationData);
-            console.log(`📡 Socket emitido a admin-${adminId}`);
-          } catch (socketError) {
-            console.error('❌ Error emitiendo socket:', socketError.message);
-          }
-        }
-
-        console.log('🔔 Notificaciones procesadas exitosamente');
-        
-      } catch (error) {
-        console.error('💥 ERROR CRÍTICO en notificaciones:', error);
-        // NO romper la respuesta principal
-      }
 
       res.json({
         success: true,

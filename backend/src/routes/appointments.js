@@ -134,11 +134,26 @@ router.post('/:id/cancel-request',
         adminIds.push(...superAdmins.map(a => a.id));
 
         if (isSpecialist) {
-          const [specialtyAdmins] = await pool.query(
-            'SELECT id FROM users WHERE role = "admin_especialidad" AND specialty_id = ?',
-            //[doctor.specialty_id]
-          );
-          adminIds.push(...specialtyAdmins.map(a => a.id));
+          // Si es especialista, notificar a admin_especialidad
+          // Si el admin_especialidad tiene specialty_id NULL → recibe de TODAS
+          // Si tiene specialty_id específico → recibe solo de esa
+          
+          let specialtyAdmins;
+          if (doctor.specialty_id === null) {
+            // Doctor es general (no debería pasar aquí, pero por seguridad)
+            specialtyAdmins = [[]];
+          } else {
+            // Buscar admins de especialidad (NULL = todos, o específico)
+            const [admins] = await pool.query(`
+              SELECT id FROM users 
+              WHERE role = "admin_especialidad" 
+              AND (specialty_id IS NULL OR specialty_id = ?)
+            `, [doctor.specialty_id]);
+            specialtyAdmins = [admins];
+          }
+          
+          adminIds.push(...specialtyAdmins[0].map(a => a.id));
+          console.log(`✅ Admins especialidad: ${specialtyAdmins[0].length}`);
         } else {
           const [generalAdmins] = await pool.query('SELECT id FROM users WHERE role = "admin_general"');
           adminIds.push(...generalAdmins.map(a => a.id));

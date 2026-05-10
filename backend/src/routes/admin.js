@@ -448,9 +448,15 @@ router.get('/cancellation-requests',
         // Admin General: solo ve médicos generales (specialty_id = NULL)
         whereClauses.push('d.specialty_id IS NULL');
       } else if (userRole === 'admin_especialidad') {
-        // Admin Especialidad: solo ve médicos de SU especialidad
-        whereClauses.push('d.specialty_id = ?');
-        queryParams.push(userSpecialtyId);
+        // Admin Especialidad: 
+        // - Si specialty_id es NULL → ve TODOS los especialistas
+        // - Si tiene specialty_id → ve solo esa especialidad
+        if (userSpecialtyId === null || userSpecialtyId === undefined) {
+          whereClauses.push('d.specialty_id IS NOT NULL');
+        } else {
+          whereClauses.push('d.specialty_id = ?');
+          queryParams.push(userSpecialtyId);
+        }
       }
       // Super Admin ve TODO (sin filtro adicional)
 

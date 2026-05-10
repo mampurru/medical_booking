@@ -406,36 +406,63 @@ router.post('/cancellation-requests/:id/reject',
   }
 );
 
-// 📋 Obtener todas las solicitudes de cancelación (Historial)
 router.get('/cancellation-requests',
   verifyTokenMiddleware,
-  authorize('super_admin', 'admin_general', 'admin_especialidad'),
   async (req, res) => {
     try {
+      const userRole = req.user.role;
+      const userSpecialtyId = req.user.specialty_id;
+      const userId = req.user.id;
+
       let query = `
-        SELECT cr.*, 
-               u.first_name as doctor_first_name, u.last_name as doctor_last_name,
-               a.patient_id, p.first_name as patient_first_name, p.last_name as patient_last_name
+        SELECT DISTINCT 
+          cr.id,
+          cr.appointment_id,
+          cr.doctor_id,
+          cr.doctor_user_id,
+          cr.cancellation_type,
+          cr.reason,
+          cr.status,
+          cr.requested_at,
+          cr.admin_notes,
+          cr.reviewed_at,
+          cr.reviewed_by,
+          a.start_time,
+          du.first_name as doctor_first_name,
+          du.last_name as doctor_last_name,
+          pu.first_name as patient_first_name,
+          pu.last_name as patient_last_name,
+          d.specialty_id as doctor_specialty_id
         FROM cancellation_requests cr
-        JOIN doctors d ON cr.doctor_id = d.id
-        JOIN users u ON d.user_id = u.id
         JOIN appointments a ON cr.appointment_id = a.id
-        JOIN users p ON a.patient_id = p.id
-        WHERE 1=1
+        JOIN doctors d ON cr.doctor_id = d.id
+        JOIN users du ON d.user_id = du.id
+        JOIN users pu ON a.patient_id = pu.id
       `;
-      const params = [];
 
-      // Filtro por especialidad si es admin_especialidad
-      if (req.user.role === 'admin_especialidad' && req.user.specialty_id) {
-        query += ' AND d.specialty_id = ?';
-        params.push(req.user.specialty_id);
+      // ✅ FILTRAR según el tipo de admin
+      const whereClauses = ['cr.status IN (?, ?)'];
+      const queryParams = ['pending', 'approved', 'rejected']; // Ajustar según necesites
+
+      if (userRole === 'admin_general') {
+        // Admin General: solo ve médicos generales (specialty_id = NULL)
+        whereClauses.push('d.specialty_id IS NULL');
+      } else if (userRole === 'admin_especialidad') {
+        // Admin Especialidad: solo ve médicos de SU especialidad
+        whereClauses.push('d.specialty_id = ?');
+        queryParams.push(userSpecialtyId);
       }
+      // Super Admin ve TODO (sin filtro adicional)
 
+      query += ' WHERE ' + whereClauses.join(' AND ');
       query += ' ORDER BY cr.requested_at DESC';
 
-      const [requests] = await pool.query(query, params);
-      res.json({ success: true, requests });
+      const [requests] = await pool.query(query, queryParams);
 
+      res.json({
+        success: true,
+        requests
+      });
     } catch (error) {
       console.error('Error obteniendo solicitudes:', error);
       res.status(500).json({ success: false, message: 'Error del servidor' });

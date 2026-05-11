@@ -211,4 +211,83 @@ router.post('/:id/cancel-request',
     }
   }
 );
+// ============================================================================
+// 📅 NUEVO ENDPOINT: Obtener citas para admins (CON FILTROS POR ESPECIALIDAD)
+// ============================================================================
+router.get('/admin/appointments',
+  verifyTokenMiddleware,
+  async (req, res) => {
+    try {
+      const userRole = req.user.role;
+      const userSpecialtyId = req.user.specialty_id;
+      const { date } = req.query;
+
+      let query = `
+        SELECT 
+          a.id,
+          a.patient_id,
+          a.doctor_id,
+          a.start_time,
+          a.end_time,
+          a.status,
+          a.reason,
+          a.created_at,
+          a.updated_at,
+          pu.first_name as patient_first_name,
+          pu.last_name as patient_last_name,
+          pu.email as patient_email,
+          du.first_name as doctor_first_name,
+          du.last_name as doctor_last_name,
+          d.specialty_id as doctor_specialty_id,
+          s.name as specialty_name
+        FROM appointments a
+        JOIN users pu ON a.patient_id = pu.id
+        JOIN doctors d ON a.doctor_id = d.id
+        JOIN users du ON d.user_id = du.id
+        LEFT JOIN specialties s ON d.specialty_id = s.id
+        WHERE 1=1
+      `;
+
+      const queryParams = [];
+
+      // Filtrar por fecha si se proporciona
+      if (date) {
+        query += ' AND DATE(a.start_time) = ?';
+        queryParams.push(date);
+      }
+
+      // ✅ FILTRAR según tipo de admin
+      if (userRole === 'admin_general') {
+        // Admin General: solo ve citas de médicos generales (specialty_id = NULL)
+        query += ' AND d.specialty_id IS NULL';
+      } else if (userRole === 'admin_especialidad') {
+        // Admin Especialidad: solo ve citas de SU especialidad
+        if (userSpecialtyId === null || userSpecialtyId === undefined) {
+          // Si el admin tiene specialty_id NULL → ve TODAS las especialidades
+          query += ' AND d.specialty_id IS NOT NULL';
+        } else {
+          // Si tiene specialty_id específico → ve solo esa especialidad
+          query += ' AND d.specialty_id = ?';
+          queryParams.push(userSpecialtyId);
+        }
+      }
+      // Super Admin ve TODO (sin filtro adicional)
+
+      query += ' ORDER BY a.start_time DESC LIMIT 100';
+
+      const [appointments] = await pool.query(query, queryParams);
+
+      res.json({
+        success: true,
+        data: {
+          appointments,
+          total: appointments.length
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error obteniendo citas para admin:', error);
+      res.status(500).json({ success: false, message: 'Error del servidor' });
+    }
+  }
+);
 module.exports = router; 

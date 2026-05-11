@@ -322,7 +322,7 @@ const AdminDash = () => {
 
       // Citas
       try {
-        const appointmentsRes = await api.get('/appointments');
+        const appointmentsRes = await api.get('/appointments/admin/appointments');
         if (appointmentsRes.data.success) {
           const apps = appointmentsRes.data.data?.appointments || appointmentsRes.data.data || [];
           setAppointments(apps);

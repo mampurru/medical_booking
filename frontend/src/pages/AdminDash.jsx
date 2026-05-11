@@ -196,10 +196,10 @@ const AdminDash = () => {
 
   // Cargar usuarios pendientes cuando se active la pestaña
   useEffect(() => {
-    if (activeTab === 'pending' && (isAdminSuper || isAdminGeneral)) {
+    if (activeTab === 'pending' && (isAdminSuper || isAdminGeneral || isAdminEspecialidad)) {
       loadPendingUsers();
     }
-  }, [activeTab, isAdminSuper, isAdminGeneral]);
+  }, [activeTab, isAdminSuper, isAdminGeneral, isAdminEspecialidad]);
 
   const loadCancellationRequests = async () => {
     try {

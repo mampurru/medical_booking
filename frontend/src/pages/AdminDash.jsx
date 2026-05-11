@@ -590,7 +590,7 @@ const AdminDash = () => {
     }
     
     //  ven Pendientes
-    if (isAdminSuper || isAdminGeneral || isAdminGeneral) { 
+    if (isAdminSuper || isAdminGeneral || isAdminEspecialidad) { 
       tabs.push({ id: 'pending', label: '⏳ Pendientes', icon: '⏳' });
     }
     
@@ -821,7 +821,7 @@ const AdminDash = () => {
                     <option value="admin">Administradores</option>
                     {isAdminSuper && <option value="super_admin">Super Admin</option>}
                     {(isAdminSuper || isAdminGeneral) && <option value="admin_general">Admin General</option>}
-                    {(isAdminSuper || isAdminGeneral) && <option value="admin_especialidad">Admin Especialidad</option>}
+                    {(isAdminSuper || isAdminEspecialidad) && <option value="admin_especialidad">Admin Especialidad</option>}
                   </select>
                   <button
                     onClick={fetchData}

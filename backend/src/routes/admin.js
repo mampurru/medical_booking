@@ -228,17 +228,65 @@ router.delete('/users/:id/reject', async (req, res) => {
 });
 
 // Listar usuarios pendientes
-router.get('/users/pending', async (req, res) => {
-  try {
-    const [users] = await pool.query(
-      `SELECT id, email, role, first_name, last_name, phone, created_at 
-       FROM users WHERE status = 'pending' ORDER BY created_at DESC`
-    );
-    res.json({ success: true,  users });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Error del servidor' });
+// router.get('/users/pending', async (req, res) => {
+//   try {
+//     const [users] = await pool.query(
+//       `SELECT id, email, role, first_name, last_name, phone, created_at 
+//        FROM users WHERE status = 'pending' ORDER BY created_at DESC`
+//     );
+//     res.json({ success: true,  users });
+//   } catch (error) {
+//     res.status(500).json({ success: false, message: 'Error del servidor' });
+//   }
+// });
+router.get('/users/pending',
+  verifyTokenMiddleware,
+  async (req, res) => {
+    try {
+      const userRole = req.user.role;
+      const userSpecialtyId = req.user.specialty_id;
+
+      let query = `
+        SELECT u.*, d.specialty_id, d.license_number, s.name as specialty_name
+        FROM users u
+        LEFT JOIN doctors d ON u.id = d.user_id
+        LEFT JOIN specialties s ON d.specialty_id = s.id
+        WHERE u.status = 'pending' AND u.role = 'doctor'
+      `;
+
+      const queryParams = [];
+
+      // ✅ FILTRAR según tipo de admin
+      if (userRole === 'admin_general') {
+        // Admin General: solo ve doctores generales (specialty_id = NULL)
+        query += ' AND (d.specialty_id IS NULL OR d.specialty_id IS NULL)';
+      } else if (userRole === 'admin_especialidad') {
+        // Admin Especialidad: solo ve doctores de SU especialidad
+        if (userSpecialtyId === null || userSpecialtyId === undefined) {
+          // Si el admin tiene specialty_id NULL → ve TODOS los especialistas
+          query += ' AND d.specialty_id IS NOT NULL';
+        } else {
+          // Si tiene specialty_id específico → ve solo esa especialidad
+          query += ' AND d.specialty_id = ?';
+          queryParams.push(userSpecialtyId);
+        }
+      }
+      // Super Admin ve TODO (sin filtro)
+
+      query += ' ORDER BY u.created_at DESC';
+
+      const [users] = await pool.query(query, queryParams);
+
+      res.json({
+        success: true,
+        users
+      });
+    } catch (error) {
+      console.error('Error obteniendo usuarios pendientes:', error);
+      res.status(500).json({ success: false, message: 'Error del servidor' });
+    }
   }
-});
+);
 // ============================================
 // NUEVAS RUTAS PARA GESTIÓN DE ADMINS
 // ============================================

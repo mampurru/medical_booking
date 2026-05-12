@@ -408,6 +408,43 @@ router.post('/cancellation-requests/:id/approve',
 
       // 6. 📧 TODO: Enviar email al paciente y al super admin
       // await sendEmailToSuperAdmin({...});
+            // 6. 📧 Enviar email al paciente (CANCELACIÓN APROBADA)
+      try {
+        // Obtener datos del paciente y la cita
+        const [appointmentData] = await pool.query(`
+          SELECT 
+            a.id, a.start_time, a.reason,
+            p.first_name as patient_first_name,
+            p.last_name as patient_last_name,
+            p.email as patient_email,
+            d.first_name as doctor_first_name,
+            d.last_name as doctor_last_name
+          FROM appointments a
+          JOIN users p ON a.patient_id = p.id
+          JOIN doctors doc ON a.doctor_id = doc.id
+          JOIN users d ON doc.user_id = d.id
+          WHERE a.id = ?
+        `, [cancellation.appointment_id]);
+
+        if (appointmentData.length > 0) {
+          const appt = appointmentData[0];
+          
+          await sendCancellationApproved(
+            {
+              id: appt.id,
+              start_time: appt.start_time,
+              reason: appt.reason,
+              doctor_name: `${appt.doctor_first_name} ${appt.doctor_last_name}`.trim()
+            },
+            appt.patient_email,
+            `${appt.patient_first_name} ${appt.patient_last_name}`.trim(),
+            admin_notes || ''
+          );
+        }
+      } catch (emailError) {
+        console.error('⚠️ Error enviando email de aprobación:', emailError.message);
+        // No romper la respuesta si falla el email
+      }
 
       res.json({
         success: true,
@@ -441,6 +478,43 @@ router.post('/cancellation-requests/:id/reject',
         'UPDATE cancellation_requests SET status = "rejected", reviewed_by = ?, reviewed_at = NOW(), admin_notes = ? WHERE id = ?',
         [req.user.id, admin_notes || '', id]
       );
+            // 3. 📧 Enviar email al paciente (CANCELACIÓN RECHAZADA)
+      try {
+        // Obtener datos del paciente y la cita
+        const [appointmentData] = await pool.query(`
+          SELECT 
+            a.id, a.start_time, a.reason,
+            p.first_name as patient_first_name,
+            p.last_name as patient_last_name,
+            p.email as patient_email,
+            d.first_name as doctor_first_name,
+            d.last_name as doctor_last_name
+          FROM appointments a
+          JOIN users p ON a.patient_id = p.id
+          JOIN doctors doc ON a.doctor_id = doc.id
+          JOIN users d ON doc.user_id = d.id
+          WHERE a.id = ?
+        `, [request[0].appointment_id]);
+
+        if (appointmentData.length > 0) {
+          const appt = appointmentData[0];
+          
+          await sendCancellationRejected(
+            {
+              id: appt.id,
+              start_time: appt.start_time,
+              reason: appt.reason,
+              doctor_name: `${appt.doctor_first_name} ${appt.doctor_last_name}`.trim()
+            },
+            appt.patient_email,
+            `${appt.patient_first_name} ${appt.patient_last_name}`.trim(),
+            admin_notes || ''
+          );
+        }
+      } catch (emailError) {
+        console.error('⚠️ Error enviando email de rechazo:', emailError.message);
+        // No romper la respuesta si falla el email
+      }
 
       res.json({
         success: true,
@@ -565,9 +639,53 @@ router.post('/cancellation-requests/:id/reassign',
          WHERE id = ?`,
         [req.user.id, `REASIGNADA: Doctor ID ${new_doctor_id}, Nueva Hora: ${new_start_time}. Notas: ${admin_notes || ''}`, id]
       );
+            // 5. 📧 Enviar email al paciente (REASIGNACIÓN)
+      try {
+        // Obtener datos de la cita ORIGINAL y NUEVA
+        const [appointmentData] = await pool.query(`
+          SELECT 
+            a.id, a.start_time as new_start_time, a.reason,
+            p.first_name as patient_first_name,
+            p.last_name as patient_last_name,
+            p.email as patient_email,
+            d.first_name as new_doctor_first_name,
+            d.last_name as new_doctor_last_name
+          FROM appointments a
+          JOIN users p ON a.patient_id = p.id
+          JOIN doctors doc ON a.doctor_id = doc.id
+          JOIN users d ON doc.user_id = d.id
+          WHERE a.id = ?
+        `, [originalAppointmentId]);
 
+        if (appointmentData.length > 0) {
+          const appt = appointmentData[0];
+          
+          // La cita original ya la tenemos en request[0]
+          const oldAppointment = {
+            start_time: request[0].original_start_time || new Date() // Si no tienes el original, usa un fallback
+          };
+          
+          const newAppointment = {
+            id: appt.id,
+            start_time: appt.new_start_time,
+            reason: appt.reason,
+            doctor_name: `${appt.new_doctor_first_name} ${appt.new_doctor_last_name}`.trim()
+          };
+          
+          await sendReassignment(
+            oldAppointment,
+            newAppointment,
+            appt.patient_email,
+            `${appt.patient_first_name} ${appt.patient_last_name}`.trim(),
+            `Reasignada por admin. Notas: ${admin_notes || ''}`
+          );
+        }
+      } catch (emailError) {
+        console.error('⚠️ Error enviando email de reasignación:', emailError.message);
+        // No romper la respuesta si falla el email
+      }
+      
       // TODO: Aquí iría el email al paciente avisando del cambio
-
       res.json({ success: true, message: 'Cita reasignada correctamente' });
 
     } catch (error) {

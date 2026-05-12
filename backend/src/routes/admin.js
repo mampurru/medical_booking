@@ -1,4 +1,4 @@
-const bcrypt = require('bcryptjs'); // ✅ Agregar esta línea
+const bcrypt = require('bcryptjs');
 const express = require('express');
 const router = express.Router();
 console.log('✅ Cargando rutas de ADMIN...');
@@ -10,6 +10,7 @@ const {
   sendReassignment 
 } = require('../services/reminderService');
 console.log('✅ Rutas de ADMIN cargadas correctamente'); 
+
 // Todas las rutas de admin requieren autenticación y rol de admin
 router.use(verifyTokenMiddleware);
 router.use(authorize('super_admin', 'admin_general', 'admin_especialidad'));
@@ -30,7 +31,7 @@ router.get('/stats', async (req, res) => {
 
     res.json({
       success: true,
-       data:{
+      data: {
         total_users: users[0].total,
         active_doctors: doctors[0].total,
         appointments_today: today[0].total,
@@ -43,20 +44,6 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// 👥 Listar todos los usuarios
-// router.get('/users', async (req, res) => {
-//   try {
-//     const [users] = await pool.query(
-//       `SELECT id, email, role, first_name, last_name, phone, created_at 
-//        FROM users 
-//        ORDER BY created_at DESC`
-//     );
-//     res.json({ success: true,  users });
-//   } catch (error) {
-//     console.error('Error obteniendo usuarios:', error);
-//     res.status(500).json({ success: false, message: 'Error del servidor' });
-//   }
-// });
 // 👥 Listar todos los usuarios (CON FILTRO POR ESPECIALIDAD)
 router.get('/users', async (req, res) => {
   try {
@@ -67,7 +54,6 @@ router.get('/users', async (req, res) => {
     `;
     const params = [];
 
-    // 🔐 Si es admin de especialidad, solo ver doctores de su especialidad
     if (req.user.role === 'admin_especialidad' && req.user.specialty_id) {
       query += ` AND (role != 'doctor' OR specialty_id = ?)`;
       params.push(req.user.specialty_id);
@@ -83,12 +69,11 @@ router.get('/users', async (req, res) => {
   }
 });
 
-// 🗑️ Eliminar usuario (solo si no es el último admin)
+// 🗑️ Eliminar usuario
 router.delete('/users/:id', async (req, res) => {
   const { id } = req.params;
   
   try {
-    // Verificar que no sea el último admin
     const [admins] = await pool.query(
       `SELECT COUNT(*) as count FROM users WHERE role = 'super_admin'`
     );
@@ -100,7 +85,6 @@ router.delete('/users/:id', async (req, res) => {
       });
     }
 
-    // Verificar que no se esté eliminando a sí mismo
     if (parseInt(id) === req.user.id) {
       return res.status(400).json({ 
         success: false, 
@@ -133,7 +117,7 @@ router.get('/reports/by-doctor', async (req, res) => {
        ORDER BY total_citas DESC`
     );
     
-    res.json({ success: true,  results });
+    res.json({ success: true, results });
   } catch (error) {
     console.error('Error en reporte:', error);
     res.status(500).json({ success: false, message: 'Error del servidor' });
@@ -169,18 +153,18 @@ router.get('/reports/by-date', async (req, res) => {
     query += ' GROUP BY DATE(start_time) ORDER BY fecha DESC';
 
     const [results] = await pool.query(query, params);
-    res.json({ success: true,  results });
+    res.json({ success: true, results });
   } catch (error) {
     console.error('Error en reporte por fecha:', error);
     res.status(500).json({ success: false, message: 'Error del servidor' });
   }
 });
-// Crear nuevo doctor (solo admin)
+
+// Crear nuevo doctor
 router.post('/doctors', async (req, res) => {
   const { firstName, lastName, email, password, specialty, license_number } = req.body;
   
   try {
-    // 1. Crear usuario
     const passwordHash = await bcrypt.hash(password, 12);
     const [userResult] = await pool.query(
       `INSERT INTO users (email, password_hash, role, first_name, last_name, status)
@@ -188,7 +172,6 @@ router.post('/doctors', async (req, res) => {
       [email, passwordHash, firstName, lastName]
     );
     
-    // 2. Crear perfil de doctor
     await pool.query(
       `INSERT INTO doctors (user_id, specialty, license_number, consultation_duration)
        VALUES (?, ?, ?, 30)`,
@@ -198,14 +181,14 @@ router.post('/doctors', async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Doctor creado exitosamente',
-      data :{ id: userResult.insertId, email }
+      data: { id: userResult.insertId, email }
     });
     
   } catch (error) {
     console.error('Error creando doctor:', error);
     res.status(500).json({ success: false, message: 'Error del servidor' });
   }
-})
+});
 
 // Aprobar usuario
 router.put('/users/:id/approve', async (req, res) => {
@@ -233,17 +216,6 @@ router.delete('/users/:id/reject', async (req, res) => {
 });
 
 // Listar usuarios pendientes
-// router.get('/users/pending', async (req, res) => {
-//   try {
-//     const [users] = await pool.query(
-//       `SELECT id, email, role, first_name, last_name, phone, created_at 
-//        FROM users WHERE status = 'pending' ORDER BY created_at DESC`
-//     );
-//     res.json({ success: true,  users });
-//   } catch (error) {
-//     res.status(500).json({ success: false, message: 'Error del servidor' });
-//   }
-// });
 router.get('/users/pending',
   verifyTokenMiddleware,
   async (req, res) => {
@@ -261,37 +233,29 @@ router.get('/users/pending',
 
       const queryParams = [];
 
-      // ✅ FILTRAR según tipo de admin
       if (userRole === 'admin_general') {
-        // Admin General: solo ve doctores generales (specialty_id = NULL)
         query += ' AND (d.specialty_id IS NULL OR d.specialty_id IS NULL)';
       } else if (userRole === 'admin_especialidad') {
-        // Admin Especialidad: solo ve doctores de SU especialidad
         if (userSpecialtyId === null || userSpecialtyId === undefined) {
-          // Si el admin tiene specialty_id NULL → ve TODOS los especialistas
           query += ' AND d.specialty_id IS NOT NULL';
         } else {
-          // Si tiene specialty_id específico → ve solo esa especialidad
           query += ' AND d.specialty_id = ?';
           queryParams.push(userSpecialtyId);
         }
       }
-      // Super Admin ve TODO (sin filtro)
 
       query += ' ORDER BY u.created_at DESC';
 
       const [users] = await pool.query(query, queryParams);
 
-      res.json({
-        success: true,
-        users
-      });
+      res.json({ success: true, users });
     } catch (error) {
       console.error('Error obteniendo usuarios pendientes:', error);
       res.status(500).json({ success: false, message: 'Error del servidor' });
     }
   }
 );
+
 // ============================================
 // NUEVAS RUTAS PARA GESTIÓN DE ADMINS
 // ============================================
@@ -300,7 +264,7 @@ router.get('/users/pending',
 router.get('/specialties', async (req, res) => {
   try {
     const [specialties] = await pool.query('SELECT id, name FROM specialties ORDER BY name');
-    res.json({ success: true,  specialties });
+    res.json({ success: true, specialties });
   } catch (error) {
     console.error('Error obteniendo especialidades:', error);
     res.status(500).json({ success: false, message: 'Error del servidor' });
@@ -315,7 +279,6 @@ router.post('/create-admin',
     const { first_name, last_name, email, password, role, specialty_id } = req.body;
 
     try {
-      // Validaciones
       const validRoles = ['admin_general', 'admin_especialidad'];
       if (!validRoles.includes(role)) {
         return res.status(400).json({ success: false, message: 'Rol de admin no válido' });
@@ -325,15 +288,8 @@ router.post('/create-admin',
         return res.status(400).json({ success: false, message: 'Se requiere especialidad para este rol' });
       }
 
-      // Hashear contraseña
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Insertar en BD
-      // const [result] = await pool.query(
-      //   `INSERT INTO users (first_name, last_name, email, password, role, specialty_id) 
-      //    VALUES (?, ?, ?, ?, ?, ?)`,
-      //   [first_name, last_name, email, hashedPassword, role, specialty_id || null]
-      // );
       const [result] = await pool.query(
         `INSERT INTO users (first_name, last_name, email, password_hash, role, specialty_id, status) 
         VALUES (?, ?, ?, ?, ?, ?, 'active')`,
@@ -343,7 +299,7 @@ router.post('/create-admin',
       res.status(201).json({
         success: true,
         message: 'Admin creado exitosamente',
-         data: { id: result.insertId, email, role } 
+        data: { id: result.insertId, email, role } 
       });
 
     } catch (error) {
@@ -352,7 +308,8 @@ router.post('/create-admin',
     }
   }
 );
-// ✅ Aprobar solicitud de cancelación
+
+// ✅ Aprobar solicitud de cancelación (CORREGIDO)
 router.post('/cancellation-requests/:id/approve',
   verifyTokenMiddleware,
   authorize('super_admin', 'admin_general', 'admin_especialidad'),
@@ -361,7 +318,6 @@ router.post('/cancellation-requests/:id/approve',
     const { admin_notes } = req.body;
 
     try {
-      // 1. Verificar que la solicitud existe y está pendiente
       const [request] = await pool.query(
         'SELECT * FROM cancellation_requests WHERE id = ? AND status = "pending"', 
         [id]
@@ -375,13 +331,11 @@ router.post('/cancellation-requests/:id/approve',
 
       const cancellation = request[0];
 
-      // 2. Obtener información del admin que aprueba
       const [adminInfo] = await pool.query(
         'SELECT first_name, last_name, role FROM users WHERE id = ?',
         [req.user.id]
       );
 
-      // 3. Actualizar estado de la solicitud
       await pool.query(
         `UPDATE cancellation_requests 
          SET status = "approved", reviewed_by = ?, reviewed_at = NOW(), admin_notes = ? 
@@ -389,13 +343,11 @@ router.post('/cancellation-requests/:id/approve',
         [req.user.id, admin_notes || '', id]
       );
 
-      // 4. Actualizar la cita a 'cancelled'
       await pool.query(
         'UPDATE appointments SET status = "cancelled" WHERE id = ?', 
         [cancellation.appointment_id]
       );
 
-      // 5. 🔔 CREAR REGISTRO DE AUDITORÍA PARA SUPER ADMIN
       await pool.query(
         `INSERT INTO cancellation_audit_log 
          (request_id, appointment_id, doctor_id, approved_by, approved_by_role, 
@@ -411,24 +363,21 @@ router.post('/cancellation-requests/:id/approve',
         ]
       );
 
-      // 6. 📧 TODO: Enviar email al paciente y al super admin
-      // await sendEmailToSuperAdmin({...});
-            // 6. 📧 Enviar email al paciente (CANCELACIÓN APROBADA)
+      // 📧 Enviar email al paciente (CORREGIDO: JOIN correcto)
       try {
-        // Obtener datos del paciente y la cita
         const [appointmentData] = await pool.query(`
           SELECT 
             a.id, a.start_time, a.reason,
-            p.first_name as patient_first_name,
-            p.last_name as patient_last_name,
-            p.email as patient_email,
-            d.first_name as doctor_first_name,
-            d.last_name as doctor_last_name
+            u.first_name as patient_first_name,  -- ✅ CORREGIDO: de users
+            u.last_name as patient_last_name,    -- ✅ CORREGIDO
+            u.email as patient_email,            -- ✅ CORREGIDO
+            du.first_name as doctor_first_name,
+            du.last_name as doctor_last_name
           FROM appointments a
-          JOIN patients p ON a.patient_id = p.id  
-          JOIN users u ON p.user_id = u.id 
+          JOIN patients p ON a.patient_id = p.id  -- appointments → patients
+          JOIN users u ON p.user_id = u.id         -- patients → users (aquí está el nombre)
           JOIN doctors doc ON a.doctor_id = doc.id
-          JOIN users d ON doc.user_id = d.id
+          JOIN users du ON doc.user_id = du.id
           WHERE a.id = ?
         `, [cancellation.appointment_id]);
 
@@ -449,7 +398,6 @@ router.post('/cancellation-requests/:id/approve',
         }
       } catch (emailError) {
         console.error('⚠️ Error enviando email de aprobación:', emailError.message);
-        // No romper la respuesta si falla el email
       }
 
       res.json({
@@ -464,7 +412,7 @@ router.post('/cancellation-requests/:id/approve',
   }
 );
 
-// ❌ Rechazar solicitud de cancelación
+// ❌ Rechazar solicitud de cancelación (CORREGIDO)
 router.post('/cancellation-requests/:id/reject',
   verifyTokenMiddleware,
   authorize('super_admin', 'admin_general', 'admin_especialidad'),
@@ -473,32 +421,31 @@ router.post('/cancellation-requests/:id/reject',
     const { admin_notes } = req.body;
 
     try {
-      // 1. Verificar que la solicitud existe y está pendiente
       const [request] = await pool.query('SELECT * FROM cancellation_requests WHERE id = ? AND status = "pending"', [id]);
       if (request.length === 0) {
         return res.status(404).json({ success: false, message: 'Solicitud no encontrada o ya procesada' });
       }
 
-      // 2. Actualizar estado a 'rejected'
       await pool.query(
         'UPDATE cancellation_requests SET status = "rejected", reviewed_by = ?, reviewed_at = NOW(), admin_notes = ? WHERE id = ?',
         [req.user.id, admin_notes || '', id]
       );
-            // 3. 📧 Enviar email al paciente (CANCELACIÓN RECHAZADA)
+
+      // 📧 Enviar email al paciente (CORREGIDO: JOIN correcto)
       try {
-        // Obtener datos del paciente y la cita
         const [appointmentData] = await pool.query(`
           SELECT 
             a.id, a.start_time, a.reason,
-            p.first_name as patient_first_name,
-            p.last_name as patient_last_name,
-            p.email as patient_email,
-            d.first_name as doctor_first_name,
-            d.last_name as doctor_last_name
+            u.first_name as patient_first_name,  -- ✅ CORREGIDO: de users
+            u.last_name as patient_last_name,
+            u.email as patient_email,
+            du.first_name as doctor_first_name,
+            du.last_name as doctor_last_name
           FROM appointments a
-          JOIN users p ON a.patient_id = p.id
+          JOIN patients p ON a.patient_id = p.id  -- ✅ CORREGIDO: patients primero
+          JOIN users u ON p.user_id = u.id         -- ✅ users después
           JOIN doctors doc ON a.doctor_id = doc.id
-          JOIN users d ON doc.user_id = d.id
+          JOIN users du ON doc.user_id = du.id
           WHERE a.id = ?
         `, [request[0].appointment_id]);
 
@@ -519,7 +466,6 @@ router.post('/cancellation-requests/:id/reject',
         }
       } catch (emailError) {
         console.error('⚠️ Error enviando email de rechazo:', emailError.message);
-        // No romper la respuesta si falla el email
       }
 
       res.json({
@@ -534,13 +480,13 @@ router.post('/cancellation-requests/:id/reject',
   }
 );
 
+// Listar solicitudes de cancelación
 router.get('/cancellation-requests',
   verifyTokenMiddleware,
   async (req, res) => {
     try {
       const userRole = req.user.role;
       const userSpecialtyId = req.user.specialty_id;
-      const userId = req.user.id;
 
       let query = `
         SELECT DISTINCT 
@@ -568,17 +514,12 @@ router.get('/cancellation-requests',
         JOIN users pu ON a.patient_id = pu.id
       `;
 
-      // ✅ FILTRAR según el tipo de admin
       const whereClauses = ['cr.status IN (?, ?)'];
-      const queryParams = ['pending', 'approved', 'rejected']; // Ajustar según necesites
+      const queryParams = ['pending', 'approved', 'rejected'];
 
       if (userRole === 'admin_general') {
-        // Admin General: solo ve médicos generales (specialty_id = NULL)
         whereClauses.push('d.specialty_id IS NULL');
       } else if (userRole === 'admin_especialidad') {
-        // Admin Especialidad: 
-        // - Si specialty_id es NULL → ve TODOS los especialistas
-        // - Si tiene specialty_id → ve solo esa especialidad
         if (userSpecialtyId === null || userSpecialtyId === undefined) {
           whereClauses.push('d.specialty_id IS NOT NULL');
         } else {
@@ -586,24 +527,21 @@ router.get('/cancellation-requests',
           queryParams.push(userSpecialtyId);
         }
       }
-      // Super Admin ve TODO (sin filtro adicional)
 
       query += ' WHERE ' + whereClauses.join(' AND ');
       query += ' ORDER BY cr.requested_at DESC';
 
       const [requests] = await pool.query(query, queryParams);
 
-      res.json({
-        success: true,
-        requests
-      });
+      res.json({ success: true, requests });
     } catch (error) {
       console.error('Error obteniendo solicitudes:', error);
       res.status(500).json({ success: false, message: 'Error del servidor' });
     }
   }
 );
-// 🔄 Reasignar cita (Cambia doctor y/o fecha)
+
+// 🔄 Reasignar cita (CORREGIDO)
 router.post('/cancellation-requests/:id/reassign',
   verifyTokenMiddleware,
   authorize('super_admin', 'admin_general', 'admin_especialidad'),
@@ -612,14 +550,12 @@ router.post('/cancellation-requests/:id/reassign',
     const { new_doctor_id, new_start_time, admin_notes } = req.body;
 
     try {
-      // 1. Obtener la solicitud original
       const [request] = await pool.query('SELECT * FROM cancellation_requests WHERE id = ?', [id]);
       if (request.length === 0) {
         return res.status(404).json({ success: false, message: 'Solicitud no encontrada' });
       }
       const originalAppointmentId = request[0].appointment_id;
 
-      // 2. Verificar que el NUEVO doctor esté libre en esa fecha/hora
       const [conflict] = await pool.query(
         `SELECT id FROM appointments 
          WHERE doctor_id = ? AND start_time = ? AND status != 'cancelled' AND id != ?`,
@@ -630,7 +566,6 @@ router.post('/cancellation-requests/:id/reassign',
         return res.status(400).json({ success: false, message: 'El doctor seleccionado ya tiene una cita en ese horario.' });
       }
 
-      // 3. Actualizar la cita original (Cambiar doctor y fecha)
       await pool.query(
         `UPDATE appointments 
          SET doctor_id = ?, start_time = ?, status = 'scheduled', updated_at = NOW() 
@@ -638,37 +573,36 @@ router.post('/cancellation-requests/:id/reassign',
         [new_doctor_id, new_start_time, originalAppointmentId]
       );
 
-      // 4. Marcar la solicitud de cancelación como "Aprobada/Resuelta"
       await pool.query(
         `UPDATE cancellation_requests 
          SET status = 'approved', reviewed_by = ?, reviewed_at = NOW(), admin_notes = ? 
          WHERE id = ?`,
         [req.user.id, `REASIGNADA: Doctor ID ${new_doctor_id}, Nueva Hora: ${new_start_time}. Notas: ${admin_notes || ''}`, id]
       );
-            // 5. 📧 Enviar email al paciente (REASIGNACIÓN)
+
+      // 📧 Enviar email al paciente (CORREGIDO: JOIN correcto)
       try {
-        // Obtener datos de la cita ORIGINAL y NUEVA
         const [appointmentData] = await pool.query(`
           SELECT 
             a.id, a.start_time as new_start_time, a.reason,
-            p.first_name as patient_first_name,
-            p.last_name as patient_last_name,
-            p.email as patient_email,
-            d.first_name as new_doctor_first_name,
-            d.last_name as new_doctor_last_name
+            u.first_name as patient_first_name,  -- ✅ CORREGIDO: de users
+            u.last_name as patient_last_name,
+            u.email as patient_email,
+            du.first_name as new_doctor_first_name,
+            du.last_name as new_doctor_last_name
           FROM appointments a
-          JOIN users p ON a.patient_id = p.id
+          JOIN patients p ON a.patient_id = p.id  -- ✅ CORREGIDO: patients primero
+          JOIN users u ON p.user_id = u.id         -- ✅ users después
           JOIN doctors doc ON a.doctor_id = doc.id
-          JOIN users d ON doc.user_id = d.id
+          JOIN users du ON doc.user_id = du.id
           WHERE a.id = ?
         `, [originalAppointmentId]);
 
         if (appointmentData.length > 0) {
           const appt = appointmentData[0];
           
-          // La cita original ya la tenemos en request[0]
           const oldAppointment = {
-            start_time: request[0].original_start_time || new Date() // Si no tienes el original, usa un fallback
+            start_time: request[0].original_start_time || new Date()
           };
           
           const newAppointment = {
@@ -688,10 +622,8 @@ router.post('/cancellation-requests/:id/reassign',
         }
       } catch (emailError) {
         console.error('⚠️ Error enviando email de reasignación:', emailError.message);
-        // No romper la respuesta si falla el email
       }
 
-      // TODO: Aquí iría el email al paciente avisando del cambio
       res.json({ success: true, message: 'Cita reasignada correctamente' });
 
     } catch (error) {
@@ -700,7 +632,8 @@ router.post('/cancellation-requests/:id/reassign',
     }
   }
 );
-// 📊 NUEVO: Reporte de cancelaciones aprobadas (Solo Super Admin)
+
+// 📊 Reporte de cancelaciones aprobadas (Solo Super Admin)
 router.get('/cancellation-reports',
   verifyTokenMiddleware,
   authorize('super_admin'),
@@ -731,6 +664,7 @@ router.get('/cancellation-reports',
     }
   }
 );
+
 // 📬 Obtener notificaciones del admin actual
 router.get('/notifications',
   verifyTokenMiddleware,
@@ -797,4 +731,5 @@ router.put('/notifications/read-all',
     }
   }
 );
+
 module.exports = router;

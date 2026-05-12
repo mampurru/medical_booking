@@ -48,7 +48,7 @@ router.put('/:id/reschedule',
 
 // DELETE - Eliminar cita (solo admin)
 router.delete('/:id', 
-  authorize(['super_admin', 'admin_general', 'admin_especialidad']), 
+  authorize('super_admin', 'admin_general', 'admin_especialidad'), 
   appointmentsController.deleteAppointment
 );
 

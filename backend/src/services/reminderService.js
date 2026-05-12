@@ -214,11 +214,69 @@ const sendReassignment = async (oldAppointment, newAppointment, patientEmail, pa
     return false;
   }
 };
+/**
+ * Enviar email cuando el ADMIN CANCELA DIRECTAMENTE (sin solicitud del paciente)
+ */
+const sendAdminCancellation = async (appointment, patientEmail, patientName, doctorName, adminNotes) => {
+  const date = new Date(appointment.start_time);
+  const formattedDate = date.toLocaleDateString('es-ES', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+  const formattedTime = date.toLocaleTimeString('es-ES', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
 
+  const msg = {
+    to: patientEmail,
+    from: {
+      email: process.env.SENDGRID_FROM_EMAIL,
+      name: process.env.SENDGRID_FROM_NAME || 'Medical Booking'
+    },
+    subject: `❌ Cita Cancelada por la Administración - Cita #${appointment.id}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #dc2626;">Hola, ${patientName}</h2>
+        <p>Te informamos que tu cita ha sido <strong style="color: #dc2626;">CANCELADA</strong> por la administración de la clínica.</p>
+        
+        <div style="background-color: #fef2f2; border: 2px solid #dc2626; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p style="font-size: 18px; font-weight: bold; color: #dc2626;">❌ Cita Cancelada</p>
+          <p><strong>📅 Fecha original:</strong> ${formattedDate}</p>
+          <p><strong>⏰ Hora:</strong> ${formattedTime}</p>
+          <p><strong>👨‍️ Doctor:</strong> ${doctorName}</p>
+          ${adminNotes ? `<p style="margin-top: 15px; padding: 10px; background-color: #fff; border-radius: 4px;"><strong>📝 Motivo de la cancelación:</strong><br>${adminNotes}</p>` : ''}
+        </div>
+
+        <p style="color: #6b7280;">
+          Lamentamos los inconvenientes. Por favor, contáctanos para reagendar tu cita en otro horario disponible.
+        </p>
+        
+        <div style="margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+          <p style="font-size: 12px; color: #9ca3af;">
+            Medical Booking System - Notificación de cancelación
+          </p>
+        </div>
+      </div>
+    `
+  };
+
+  try {
+    await sgMail.send(msg);
+    console.log(`✅ Email de cancelación por admin enviado a ${patientEmail}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error enviando email de cancelación por admin:', error.message);
+    return false;
+  }
+};
 module.exports = { 
   sendAppointmentReminder, 
   sendTwoHourReminder,
   sendCancellationApproved,
   sendCancellationRejected,
-  sendReassignment
+  sendReassignment,
+  sendAdminCancellation
 };

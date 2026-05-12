@@ -425,7 +425,8 @@ router.post('/cancellation-requests/:id/approve',
             d.first_name as doctor_first_name,
             d.last_name as doctor_last_name
           FROM appointments a
-          JOIN users p ON a.patient_id = p.id
+          JOIN patients p ON a.patient_id = p.id  
+          JOIN users u ON p.user_id = u.id 
           JOIN doctors doc ON a.doctor_id = doc.id
           JOIN users d ON doc.user_id = d.id
           WHERE a.id = ?

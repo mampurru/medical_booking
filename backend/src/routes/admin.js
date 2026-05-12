@@ -4,6 +4,11 @@ const router = express.Router();
 console.log('✅ Cargando rutas de ADMIN...');
 const { pool } = require('../config/db');
 const { verifyTokenMiddleware, authorize } = require('../middleware/auth');
+const { 
+  sendCancellationApproved, 
+  sendCancellationRejected, 
+  sendReassignment 
+} = require('../services/reminderService');
 console.log('✅ Rutas de ADMIN cargadas correctamente'); 
 // Todas las rutas de admin requieren autenticación y rol de admin
 router.use(verifyTokenMiddleware);
@@ -684,7 +689,7 @@ router.post('/cancellation-requests/:id/reassign',
         console.error('⚠️ Error enviando email de reasignación:', emailError.message);
         // No romper la respuesta si falla el email
       }
-      
+
       // TODO: Aquí iría el email al paciente avisando del cambio
       res.json({ success: true, message: 'Cita reasignada correctamente' });
 

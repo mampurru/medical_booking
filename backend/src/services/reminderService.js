@@ -88,4 +88,10 @@ const sendReminders = async () => {
   }
 };
 
-module.exports = { sendReminders };
+module.exports = { 
+  sendAppointmentReminder, 
+  sendTwoHourReminder,
+  sendCancellationApproved,
+  sendCancellationRejected,
+  sendReassignment
+};

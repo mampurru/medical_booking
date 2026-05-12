@@ -7,7 +7,8 @@ const { verifyTokenMiddleware, authorize } = require('../middleware/auth');
 const { 
   sendCancellationApproved, 
   sendCancellationRejected, 
-  sendReassignment 
+  sendReassignment,
+  sendAdminCancellation  
 } = require('../services/reminderService');
 console.log('✅ Rutas de ADMIN cargadas correctamente'); 
 
@@ -731,5 +732,67 @@ router.put('/notifications/read-all',
     }
   }
 );
+// ❌ Cancelar cita directamente por admin (sin solicitud del paciente)
+router.put('/appointments/:id/cancel-by-admin',
+  verifyTokenMiddleware,
+  authorize('super_admin', 'admin_general', 'admin_especialidad'),
+  async (req, res) => {
+    const { id } = req.params;
+    const { admin_notes } = req.body;
 
+    try {
+      // 1. Obtener datos de la cita
+      const [appointmentData] = await pool.query(`
+        SELECT 
+          a.id, a.start_time,
+          u.first_name as patient_first_name,
+          u.last_name as patient_last_name,
+          u.email as patient_email,
+          du.first_name as doctor_first_name,
+          du.last_name as doctor_last_name
+        FROM appointments a
+        JOIN patients p ON a.patient_id = p.id
+        JOIN users u ON p.user_id = u.id
+        JOIN doctors d ON a.doctor_id = d.id
+        JOIN users du ON d.user_id = du.id
+        WHERE a.id = ?
+      `, [id]);
+
+      if (appointmentData.length === 0) {
+        return res.status(404).json({ success: false, message: 'Cita no encontrada' });
+      }
+
+      const appt = appointmentData[0];
+
+      // 2. Cancelar la cita
+      await pool.query('UPDATE appointments SET status = "cancelled" WHERE id = ?', [id]);
+
+      // 3. 📧 Enviar email DIFERENTE (cancelación por admin)
+      try {
+        await sendAdminCancellation(
+          {
+            id: appt.id,
+            start_time: appt.start_time,
+            doctor_name: `${appt.doctor_first_name} ${appt.doctor_last_name}`.trim()
+          },
+          appt.patient_email,
+          `${appt.patient_first_name} ${appt.patient_last_name}`.trim(),
+          `${appt.doctor_first_name} ${appt.doctor_last_name}`.trim(),
+          admin_notes || 'Cancelación administrativa'
+        );
+      } catch (emailError) {
+        console.error('⚠️ Error enviando email:', emailError.message);
+      }
+
+      res.json({
+        success: true,
+        message: 'Cita cancelada por el administrador'
+      });
+
+    } catch (error) {
+      console.error('Error cancelando cita:', error);
+      res.status(500).json({ success: false, message: 'Error del servidor' });
+    }
+  }
+);
 module.exports = router;

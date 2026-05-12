@@ -232,11 +232,11 @@ const sendAdminCancellation = async (appointment, patientEmail, patientName, doc
 
   const msg = {
     to: patientEmail,
-    from: {
-      email: process.env.SENDGRID_FROM_EMAIL,
-      name: process.env.SENDGRID_FROM_NAME || 'Medical Booking'
+    from: { 
+      email: process.env.SENDGRID_FROM_EMAIL, 
+      name: process.env.SENDGRID_FROM_NAME || 'Medical Booking' 
     },
-    subject: `❌ Cita Cancelada por la Administración - Cita #${appointment.id}`,
+    subject: `❌ Cita Cancelada - Cita #${appointment.id}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2 style="color: #dc2626;">Hola, ${patientName}</h2>
@@ -246,12 +246,13 @@ const sendAdminCancellation = async (appointment, patientEmail, patientName, doc
           <p style="font-size: 18px; font-weight: bold; color: #dc2626;">❌ Cita Cancelada</p>
           <p><strong>📅 Fecha original:</strong> ${formattedDate}</p>
           <p><strong>⏰ Hora:</strong> ${formattedTime}</p>
-          <p><strong>👨‍️ Doctor:</strong> ${doctorName}</p>
-          ${adminNotes ? `<p style="margin-top: 15px; padding: 10px; background-color: #fff; border-radius: 4px;"><strong>📝 Motivo de la cancelación:</strong><br>${adminNotes}</p>` : ''}
+          <p><strong>👨‍⚕️ Doctor:</strong> ${doctorName}</p>
+          ${adminNotes ? `<p style="margin-top: 15px; padding: 10px; background-color: #fff; border-radius: 4px;"><strong>📝 Motivo:</strong><br>${adminNotes}</p>` : ''}
         </div>
 
-        <p style="color: #6b7280;">
-          Lamentamos los inconvenientes. Por favor, contáctanos para reagendar tu cita en otro horario disponible.
+        <p style="color: #6b7280; background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <strong>ℹ️ Información importante:</strong><br>
+          Lamentamos los inconvenientes. Puedes agendar una nueva cita desde nuestra plataforma cuando tengas disponibilidad.
         </p>
         
         <div style="margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">

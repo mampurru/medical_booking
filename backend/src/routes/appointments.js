@@ -224,15 +224,8 @@ router.get('/admin/appointments',
 
       let query = `
         SELECT 
-          a.id,
-          a.patient_id,
-          a.doctor_id,
-          a.start_time,
-          a.end_time,
-          a.status,
-          a.reason,
-          a.created_at,
-          a.updated_at,
+          a.id, a.patient_id, a.doctor_id, a.start_time, a.end_time,
+          a.status, a.reason, a.created_at, a.updated_at,
           pu.first_name as patient_first_name,
           pu.last_name as patient_last_name,
           pu.email as patient_email,
@@ -241,12 +234,14 @@ router.get('/admin/appointments',
           d.specialty_id as doctor_specialty_id,
           s.name as specialty_name
         FROM appointments a
-        JOIN users pu ON a.patient_id = pu.id
+        JOIN patients p ON a.patient_id = p.id          -- ✅ CORRECTO
+        JOIN users pu ON p.user_id = pu.id               -- ✅ CORRECTO (era el error)
         JOIN doctors d ON a.doctor_id = d.id
         JOIN users du ON d.user_id = du.id
         LEFT JOIN specialties s ON d.specialty_id = s.id
         WHERE 1=1
       `;
+      
 
       const queryParams = [];
 

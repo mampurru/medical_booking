@@ -1,6 +1,8 @@
 const { pool } = require('../config/db');
 const { sendAppointmentReminder, sendTwoHourReminder } = require('./emailService');
+const sgMail = require('@sendgrid/mail');
 
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 /**
  * Cron Job: Enviar recordatorios (24h y 2h antes)
  * Se ejecuta cada 15 minutos

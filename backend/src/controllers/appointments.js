@@ -1,5 +1,9 @@
 const { pool } = require('../config/db');
 const { createCalendarEvent } = require('../services/googleCalendarService');
+const { 
+  sendAppointmentCreated,      
+  sendPatientCancellation      
+} = require('../services/reminderService');
 
 // Obtener todas las citas (con filtros)
 exports.getAppointments = async (req, res) => {
@@ -302,6 +306,35 @@ exports.createAppointment = async (req, res) => {
       doctor_id: newAppointment[0].doctor_id
     }).catch(err => console.error("❌ Error en Google Calendar:", err));
     // ====================================
+    // ===  ENVIAR EMAIL DE CONFIRMACIÓN AL PACIENTE ===
+    try {
+      // Obtener email del paciente
+      const [patientEmailData] = await pool.query(`
+        SELECT u.email, u.first_name, u.last_name
+        FROM patients p
+        JOIN users u ON p.user_id = u.id
+        WHERE p.id = ?
+      `, [finalPatientId]);
+
+      if (patientEmailData.length > 0) {
+        const patient = patientEmailData[0];
+        
+        await sendAppointmentCreated(
+          {
+            id: result.insertId,
+            start_time: start_time,
+            reason: reason || 'Consulta general'
+          },
+          patient.email,
+          `${patient.first_name} ${patient.last_name}`.trim(),
+          newAppointment[0].doctor_name
+        );
+      }
+    } catch (emailError) {
+      console.error('⚠️ Error enviando email de confirmación:', emailError.message);
+    }
+    // ===================================================
+
 
     res.status(201).json({
       success: true,
@@ -451,6 +484,44 @@ exports.cancelAppointment = async (req, res) => {
        WHERE id = ?`,
       [cancellation_reason ? `Cancelada: ${cancellation_reason}` : null, id]
     );
+    
+    // ===  ENVIAR EMAIL DE CANCELACIÓN AL PACIENTE ===
+    try {
+      // Obtener datos del paciente y doctor
+      const [appointmentData] = await pool.query(`
+        SELECT 
+          a.id, a.start_time,
+          u.email as patient_email,
+          u.first_name as patient_first_name,
+          u.last_name as patient_last_name,
+          du.first_name as doctor_first_name,
+          du.last_name as doctor_last_name
+        FROM appointments a
+        JOIN patients p ON a.patient_id = p.id
+        JOIN users u ON p.user_id = u.id
+        JOIN doctors d ON a.doctor_id = d.id
+        JOIN users du ON d.user_id = du.id
+        WHERE a.id = ?
+      `, [id]);
+
+      if (appointmentData.length > 0) {
+        const appt = appointmentData[0];
+        
+        await sendPatientCancellation(
+          {
+            id: appt.id,
+            start_time: appt.start_time,
+            doctor_name: `${appt.doctor_first_name} ${appt.doctor_last_name}`.trim()
+          },
+          appt.patient_email,
+          `${appt.patient_first_name} ${appt.patient_last_name}`.trim(),
+          `${appt.doctor_first_name} ${appt.doctor_last_name}`.trim()
+        );
+      }
+    } catch (emailError) {
+      console.error('⚠️ Error enviando email de cancelación:', emailError.message);
+    }
+    // =================================================
 
     res.json({
       success: true,

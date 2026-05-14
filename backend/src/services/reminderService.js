@@ -1,7 +1,7 @@
 const { pool } = require('../config/db');
 const { sendAppointmentReminder, sendTwoHourReminder } = require('./emailService');
 const sgMail = require('@sendgrid/mail');
-
+const { sendSmsReminder } = require('./smsService');
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 /**
  * Cron Job: Enviar recordatorios (24h y 2h antes)
@@ -20,6 +20,7 @@ const sendReminders = async () => {
         a.id, a.start_time, a.reason, a.doctor_id, a.reminder_24h_sent,
         p.user_id as patient_id,
         u.email as patient_email,
+        u.phone as patient_phone,
         u.first_name as patient_name
       FROM appointments a
       INNER JOIN patients p ON a.patient_id = p.id
@@ -46,6 +47,9 @@ const sendReminders = async () => {
           [appointment.id]
         );
       }
+      //envio de mensaje sms
+      const smsMsg = `Hola ${appointment.patient_name}, tienes una cita médica mañana ${new Date(appointment.start_time).toLocaleDateString()} con Dr. ${appointment.doctor_name}.`;
+      await sendSmsReminder(appointment.patient_phone, smsMsg);
     }
 
     // ===== RECORDATORIO 2 HORAS =====
@@ -54,6 +58,7 @@ const sendReminders = async () => {
       SELECT 
         a.id, a.start_time, a.reason, a.doctor_id, a.reminder_2h_sent,
         p.user_id as patient_id,
+        u.phone as patient_phone,
         u.email as patient_email,
         u.first_name as patient_name
       FROM appointments a
@@ -81,6 +86,9 @@ const sendReminders = async () => {
           [appointment.id]
         );
       }
+      //envio sms
+      const smsMsg = `⏰ RECORDATORIO: Tu cita es hoy a las ${new Date(appointment.start_time).toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}. Por favor asiste puntualmente.`;
+      await sendSmsReminder(appointment.patient_phone, smsMsg);
     }
 
     console.log(`✅ [CRON] Recordatorios completados`);

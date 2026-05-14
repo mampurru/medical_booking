@@ -392,6 +392,90 @@ const sendPatientCancellation = async (appointment, patientEmail, patientName, d
     return false;
   }
 };
+/**
+ * FUNCIÓN PRINCIPAL PARA CRON: Busca y envía recordatorios automáticos
+ * Se ejecuta cada 15 minutos desde server.js
+ */
+const sendReminders = async () => {
+  const { pool } = require('../config/db');  // Importar pool dinámicamente para evitar circular deps
+  
+  console.log('🔍 [CRON] Buscando citas para recordatorios...');
+  
+  try {
+    // === RECORDATORIO 24 HORAS ===
+    const [reminders24h] = await pool.query(`
+      SELECT 
+        a.id, a.start_time, a.reason, a.doctor_id,
+        u.email as patient_email,
+        u.first_name as patient_first_name,
+        u.last_name as patient_last_name,
+        CONCAT(du.first_name, ' ', du.last_name) as doctor_name
+      FROM appointments a
+      JOIN patients p ON a.patient_id = p.id
+      JOIN users u ON p.user_id = u.id
+      JOIN doctors d ON a.doctor_id = d.id
+      JOIN users du ON d.user_id = du.id
+      WHERE a.status = 'scheduled'
+        AND (a.reminder_sent_24h IS NULL OR a.reminder_sent_24h = FALSE)
+        AND a.start_time BETWEEN DATE_ADD(NOW(), INTERVAL 23 HOUR) 
+                            AND DATE_ADD(NOW(), INTERVAL 25 HOUR)
+    `);
+
+    console.log(`📧 [24h] Citas encontradas: ${reminders24h.length}`);
+
+    for (const apt of reminders24h) {
+      try {
+        await sendAppointmentReminder(
+          { id: apt.id, start_time: apt.start_time, reason: apt.reason, doctor_id: apt.doctor_id },
+          apt.patient_email,
+          `${apt.patient_first_name} ${apt.patient_last_name}`.trim()
+        );
+        // Marcar como enviado para no duplicar
+        await pool.query('UPDATE appointments SET reminder_sent_24h = TRUE WHERE id = ?', [apt.id]);
+        console.log(`✅ [24h] Enviado a ${apt.patient_email} (Cita #${apt.id})`);
+      } catch (error) {
+        console.error(`❌ [24h] Error: ${error.message}`);
+      }
+    }
+
+    // === RECORDATORIO 2 HORAS ===
+    const [reminders2h] = await pool.query(`
+      SELECT 
+        a.id, a.start_time, a.reason,
+        u.email as patient_email,
+        u.first_name as patient_first_name,
+        u.last_name as patient_last_name
+      FROM appointments a
+      JOIN patients p ON a.patient_id = p.id
+      JOIN users u ON p.user_id = u.id
+      WHERE a.status = 'scheduled'
+        AND (a.reminder_sent_2h IS NULL OR a.reminder_sent_2h = FALSE)
+        AND a.start_time BETWEEN DATE_ADD(NOW(), INTERVAL 1 HOUR) 
+                            AND DATE_ADD(NOW(), INTERVAL 3 HOUR)
+    `);
+
+    console.log(`📧 [2h] Citas encontradas: ${reminders2h.length}`);
+
+    for (const apt of reminders2h) {
+      try {
+        await sendTwoHourReminder(
+          { id: apt.id, start_time: apt.start_time, reason: apt.reason },
+          apt.patient_email,
+          `${apt.patient_first_name} ${apt.patient_last_name}`.trim()
+        );
+        await pool.query('UPDATE appointments SET reminder_sent_2h = TRUE WHERE id = ?', [apt.id]);
+        console.log(`✅ [2h] Enviado a ${apt.patient_email} (Cita #${apt.id})`);
+      } catch (error) {
+        console.error(`❌ [2h] Error: ${error.message}`);
+      }
+    }
+
+    console.log('🎉 [CRON] Proceso de recordatorios completado');
+    
+  } catch (error) {
+    console.error('❌ [CRON] Error crítico:', error);
+  }
+};
 module.exports = { 
   sendAppointmentReminder, 
   sendTwoHourReminder,
@@ -400,5 +484,6 @@ module.exports = {
   sendReassignment,
   sendAdminCancellation,
   sendAppointmentCreated,     
-  sendPatientCancellation       
+  sendPatientCancellation,
+  sendReminders     
 };

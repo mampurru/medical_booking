@@ -27,7 +27,7 @@ const sendReminders = async () => {
       INNER JOIN users u ON p.user_id = u.id
       WHERE 
         a.start_time > NOW()
-        AND TIMESTAMPDIFF(HOUR, NOW(), a.start_time) BETWEEN 23 AND 25
+        AND TIMESTAMPDIFF(HOUR, CONVERT_TZ(NOW(), '+00:00', '-05:00'), a.start_time) BETWEEN 23 AND 25
         AND a.status = 'scheduled'
         AND a.reminder_24h_sent = 0
     `);
@@ -66,7 +66,7 @@ const sendReminders = async () => {
       INNER JOIN users u ON p.user_id = u.id
       WHERE 
         a.start_time > NOW()
-        AND TIMESTAMPDIFF(HOUR, NOW(), a.start_time) BETWEEN 1.5 AND 3
+        AND TIMESTAMPDIFF(HOUR, CONVERT_TZ(NOW(), '+00:00', '-05:00'), a.start_time) BETWEEN 1.5 AND 3
         AND a.status = 'scheduled'
         AND a.reminder_2h_sent = 0
     `);

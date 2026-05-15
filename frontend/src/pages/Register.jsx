@@ -10,6 +10,8 @@ const Register = () => {
     password: '',
     role: 'patient', // Valor por defecto
     phone: '',
+    identification_number: '', 
+    dateOfBirth: '',
     specialty: '',
     license_number: ''
   });
@@ -96,12 +98,28 @@ const Register = () => {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
           />
 
-          <input
-            name="phone"
-            placeholder="Teléfono (opcional)"
-            onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-          />
+          <div className="form-group">
+            <label>Número de Cédula *</label>
+            <input 
+              type="text"
+              placeholder="Ej: 1234567890"
+              value={formData.identification_number}
+              onChange={(e) => setFormData({...formData, identification_number: e.target.value})}
+              required
+              pattern="[0-9]+"  // Solo números
+              title="Solo se permiten números"
+            />
+          </div>
+          <div className="form-group">
+            <label>Teléfono *</label>
+            <input 
+              type="tel"
+              placeholder="+57 300 123 4567"
+              value={formData.phone}
+              onChange={(e) => setFormData({...formData, phone: e.target.value})}
+              required
+            />
+          </div>
 
           <select
             name="role"

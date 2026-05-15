@@ -3,36 +3,128 @@ const { pool } = require('../config/db');
 const { generateToken } = require('../utils/jwt');
 
 // Registro de usuario
+// exports.register = async (req, res) => {
+//   const { email, password, role, firstName, lastName, phone, specialty, dateOfBirth,license_number } = req.body;
+
+//   try {
+//     // 1. Verificar si el email ya existe
+//     const [existingUsers] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+//     if (existingUsers.length > 0) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'El email ya está registrado' 
+//       });
+//     }
+
+//     // 2. Determinar status según el rol
+//     const status = role === 'patient' ? 'active' : 'pending';
+
+//     // 3. Hashear contraseña
+//     const salt = await bcrypt.genSalt(12);
+//     const passwordHash = await bcrypt.hash(password, salt);
+
+//     // 4. Crear usuario
+//     const [result] = await pool.query(
+//       `INSERT INTO users (email, password_hash, role, first_name, last_name, phone, status)
+//        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+//       [email, passwordHash, role, firstName, lastName, phone, status]
+//     );
+
+//     const userId = result.insertId;
+
+//     // 5. Crear perfil específico según el rol
+//     if (role === 'patient') {
+//       await pool.query(
+//         'INSERT INTO patients (user_id, date_of_birth) VALUES (?, ?)',
+//         [userId, dateOfBirth || null]
+//       );
+//     } else if (role === 'doctor') {  
+//       await pool.query(
+//         'INSERT INTO doctors (user_id, specialty, license_number) VALUES (?, ?, ?)',
+//         [userId, specialty || 'Medicina General', license_number ||`DOC-${userId}`]
+//       );
+//     }
+
+//     // En el backend, antes de insertar:
+//     if (role === 'doctor' && !license_number?.trim()) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'El número de licencia es requerido para doctores'
+//       });
+//     }
+
+//     // 6. Generar token
+//     const token = generateToken(userId, role);
+
+//     res.status(201).json({
+//       success: true,
+//       message: status === 'pending' 
+//         ? 'Registro exitoso. Tu cuenta está pendiente de aprobación.' 
+//         : 'Usuario registrado exitosamente',
+//       data: {
+//         token,
+//         user: {
+//           id: userId,
+//           email,
+//           role,
+//           firstName,
+//           lastName
+//         }
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Error en registro:', error);
+//     res.status(500).json({ 
+//       success: false, 
+//       message: 'Error en el servidor' 
+//     });
+//   }
+// };
 exports.register = async (req, res) => {
-  const { email, password, role, firstName, lastName, phone, specialty, dateOfBirth,license_number } = req.body;
+  const { email, password, role, firstName, lastName, phone, identification_number, specialty, dateOfBirth, license_number } = req.body;
 
   try {
     // 1. Verificar si el email ya existe
     const [existingUsers] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
     if (existingUsers.length > 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'El email ya está registrado' 
-      });
+      return res.status(400).json({ success: false, message: 'El email ya está registrado' });
     }
 
-    // 2. Determinar status según el rol
-    const status = role === 'patient' ? 'active' : 'pending';
+    // 2. Validar campos obligatorios
+    if (!phone || phone.trim() === '') {
+      return res.status(400).json({ success: false, message: 'El teléfono es obligatorio' });
+    }
+    if (!identification_number || identification_number.trim() === '') {
+      return res.status(400).json({ success: false, message: 'El número de identificación (cédula) es obligatorio' });
+    }
+    if (role === 'doctor' && (!license_number || !license_number.trim())) {
+      return res.status(400).json({ success: false, message: 'El número de licencia es requerido para doctores' });
+    }
 
-    // 3. Hashear contraseña
+    // 3. Verificar que la cédula no esté duplicada
+    const [existingCedula] = await pool.query('SELECT id FROM users WHERE identification_number = ?', [identification_number]);
+    if (existingCedula.length > 0) {
+      return res.status(400).json({ success: false, message: 'Este número de cédula ya está registrado' });
+    }
+
+    // 4. Todos los usuarios nacen como 'pending'
+    const status = 'pending';
+
+    // 5. Hashear contraseña
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // 4. Crear usuario
+    // 6. Crear usuario (AHORA CON identification_number)
     const [result] = await pool.query(
-      `INSERT INTO users (email, password_hash, role, first_name, last_name, phone, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [email, passwordHash, role, firstName, lastName, phone, status]
+      `INSERT INTO users (email, password_hash, role, first_name, last_name, phone, identification_number, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [email, passwordHash, role, firstName, lastName, phone, identification_number, status]
     );
 
     const userId = result.insertId;
 
-    // 5. Crear perfil específico según el rol
+    // 7. Crear perfil específico según el rol
     if (role === 'patient') {
       await pool.query(
         'INSERT INTO patients (user_id, date_of_birth) VALUES (?, ?)',
@@ -41,44 +133,25 @@ exports.register = async (req, res) => {
     } else if (role === 'doctor') {  
       await pool.query(
         'INSERT INTO doctors (user_id, specialty, license_number) VALUES (?, ?, ?)',
-        [userId, specialty || 'Medicina General', license_number ||`DOC-${userId}`]
+        [userId, specialty || 'Medicina General', license_number]
       );
     }
 
-    // En el backend, antes de insertar:
-    if (role === 'doctor' && !license_number?.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'El número de licencia es requerido para doctores'
-      });
-    }
-
-    // 6. Generar token
+    // 8. Generar token
     const token = generateToken(userId, role);
 
     res.status(201).json({
       success: true,
-      message: status === 'pending' 
-        ? 'Registro exitoso. Tu cuenta está pendiente de aprobación.' 
-        : 'Usuario registrado exitosamente',
+      message: 'Registro exitoso. Tu cuenta está pendiente de aprobación.',
       data: {
         token,
-        user: {
-          id: userId,
-          email,
-          role,
-          firstName,
-          lastName
-        }
+        user: { id: userId, email, role, firstName, lastName }
       }
     });
 
   } catch (error) {
     console.error('Error en registro:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error en el servidor' 
-    });
+    res.status(500).json({ success: false, message: 'Error en el servidor' });
   }
 };
 // Login

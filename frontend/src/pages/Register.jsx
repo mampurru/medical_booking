@@ -33,14 +33,10 @@ const Register = () => {
         const response = await api.post('/auth/register', formData);
         
         if (response.data.success) {
-            if (formData.role === 'doctor') {
-            alert('✅ Registro exitoso. Tu cuenta está pendiente de aprobación por un administrador. Recibirás un email cuando sea activada.');
-            } else {
-            alert('✅ Registro exitoso. ¡Bienvenido!');
-            }
-            navigate('/login');
+          alert('✅ Registro exitoso. Tu cuenta está pendiente de aprobación por un administrador. Recibirás un correo cuando sea activada.');
+          navigate('/login');
         } else {
-            setError(response.data.message || 'Error al registrarse');
+          setError(response.data.message || 'Error al registrarse');
         }
         } catch (error) {
         setError(error.response?.data?.message || 'Error en el servidor. Intenta de nuevo.');
@@ -98,26 +94,37 @@ const Register = () => {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
           />
 
-          <div className="form-group">
-            <label>Número de Cédula *</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Número de Cédula *
+            </label>
             <input 
               type="text"
+              name="identification_number"
               placeholder="Ej: 1234567890"
               value={formData.identification_number}
-              onChange={(e) => setFormData({...formData, identification_number: e.target.value})}
+              onChange={handleChange}  // ✅ Usar la función handleChange genérica
               required
-              pattern="[0-9]+"  // Solo números
+              pattern="[0-9]+"
               title="Solo se permiten números"
+              maxLength={20}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             />
+            <small className="text-gray-500 text-xs">Sin puntos ni comas</small>
           </div>
-          <div className="form-group">
-            <label>Teléfono *</label>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Teléfono *
+            </label>
             <input 
               type="tel"
+              name="phone"
               placeholder="+57 300 123 4567"
               value={formData.phone}
-              onChange={(e) => setFormData({...formData, phone: e.target.value})}
+              onChange={handleChange}  // ✅ Usar la función handleChange genérica
               required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
 

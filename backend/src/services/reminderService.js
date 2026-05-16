@@ -300,15 +300,18 @@ const sendAdminCancellation = async (appointment, patientEmail, patientName, doc
  */
 const sendAppointmentCreated = async (appointment, patientEmail, patientName, doctorName) => {
   const date = new Date(appointment.start_time);
+  const formattedTime = date.toLocaleTimeString('es-ES', { 
+    hour: '2-digit', 
+    minute: '2-digit',
+    timeZone: 'America/Bogota'  
+  });
+
   const formattedDate = date.toLocaleDateString('es-ES', { 
     weekday: 'long', 
     year: 'numeric', 
     month: 'long', 
-    day: 'numeric' 
-  });
-  const formattedTime = date.toLocaleTimeString('es-ES', { 
-    hour: '2-digit', 
-    minute: '2-digit' 
+    day: 'numeric',
+    timeZone: 'America/Bogota'  
   });
 
   const msg = {

@@ -92,38 +92,71 @@ const PatientDash = () => {
   //     setIsSubmitting(false);
   //   }
   // };
-  const handleCreateAppointment = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+// ✅ ELIMINA formatDateTimeLocal y usa esto:
 
-    try {
-      // === 🕐 CONVERTIR HORA LOCAL A UTC ISO ===
-      // new Date() interpreta el string como hora local del navegador
-      // toISOString() lo convierte a UTC para enviar al backend
-      const startUTC = new Date(formData.start_time).toISOString();
-      const endUTC = new Date(formData.end_time).toISOString();
-      
-      const payload = {
-        doctor_id: formData.doctor_id,
-        start_time: startUTC,  
-        end_time: endUTC,      
-        reason: formData.reason
-      };
+const handleCreateAppointment = async (e) => {
+  e.preventDefault();
+  setIsSubmitting(true);
 
-      console.log('🕐 Payload UTC enviado:', payload);
+  try {
+    // Obtener la fecha y hora del input (que está en formato local)
+    // El input datetime-local devuelve: "2026-05-16T15:30"
+    const startDateLocal = new Date(formData.start_time);
+    const endDateLocal = new Date(formData.end_time);
+    
+    console.log('🕐 Fecha local inicio:', startDateLocal);
+    console.log('🕐 Fecha local fin:', endDateLocal);
+    
+    // Convertir a UTC para enviar al backend
+    const payload = {
+      doctor_id: formData.doctor_id,
+      start_time: startDateLocal.toISOString(),  
+      end_time: endDateLocal.toISOString(),      
+      reason: formData.reason
+    };
 
-      await api.post('/appointments', payload);
-      alert('✅ Cita agendada correctamente');
-      setShowNewAppointmentModal(false);
-      window.location.reload();
-      
-    } catch (error) {
-      console.error('❌ Error agendando:', error);
-      alert(error.response?.data?.message || 'Error al agendar');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    console.log('🕐 Payload UTC enviado:', payload);
+
+    await api.post('/appointments', payload);
+    alert('✅ Cita agendada correctamente');
+    setShowNewAppointmentModal(false);
+    window.location.reload();
+    
+  } catch (error) {
+    console.error('❌ Error agendando:', error);
+    alert(error.response?.data?.message || 'Error al agendar');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
+// ✅ También actualiza el onChange del input para mantener consistencia:
+<input
+  type="datetime-local"
+  required
+  className="w-full border border-gray-300 rounded-lg p-2"
+  value={formData.start_time}
+  onChange={(e) => {
+    const newStart = new Date(e.target.value);
+    const newEnd = new Date(newStart.getTime() + 30 * 60000);
+    
+    // Formatear para el input (sin zona horaria)
+    const formatForInput = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    };
+    
+    setFormData({
+      ...formData,
+      start_time: formatForInput(newStart),
+      end_time: formatForInput(newEnd)
+    });
+  }}
+/>
 
   const handleSuccess = () => {
     window.location.reload();

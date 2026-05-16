@@ -119,10 +119,16 @@ const PatientDash = () => {
       const startDateLocal = new Date(formData.start_time);
       const endDateLocal = new Date(formData.end_time);
       
+      // const payload = {
+      //   doctor_id: Number(formData.doctor_id),
+      //   start_time: startDateLocal.toISOString(),  
+      //   end_time: endDateLocal.toISOString(),      
+      //   reason: formData.reason
+      // };
       const payload = {
         doctor_id: Number(formData.doctor_id),
-        start_time: startDateLocal.toISOString(),  
-        end_time: endDateLocal.toISOString(),      
+        start_time: formData.start_time,  
+        end_time: formData.end_time,      
         reason: formData.reason
       };
 
@@ -132,6 +138,8 @@ const PatientDash = () => {
       
       // ✅ Recargar las citas en lugar de reload completo
       await fetchAppointments();
+
+      window.location.reload();
       
     } catch (error) {
       console.error('❌ Error agendando:', error);

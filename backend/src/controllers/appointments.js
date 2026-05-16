@@ -273,17 +273,34 @@ exports.createAppointment = async (req, res) => {
       });
     }
 
+    // const validateOfficeHours = (dateString) => {
+    //   if (!dateString) return false;
+    //   try {
+    //     const dateColombia = new Date(new Date(dateString).toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+    //     const hours = dateColombia.getHours();
+    //     return hours >= 8 && hours < 18;
+    //   } catch (error) {
+    //     console.error('❌ Error validando horario:', error);
+    //     return false;
+    //   }
+    // };
     const validateOfficeHours = (dateString) => {
-      if (!dateString) return false;
-      try {
-        const dateColombia = new Date(new Date(dateString).toLocaleString('en-US', { timeZone: 'America/Bogota' }));
-        const hours = dateColombia.getHours();
-        return hours >= 8 && hours < 18;
-      } catch (error) {
-        console.error('❌ Error validando horario:', error);
-        return false;
-      }
-    };
+    if (!dateString) return false;
+    
+    try {
+      const dateStr = dateString.replace('T', ' ');
+      const date = new Date(dateStr + ':00'); 
+      
+      const hours = date.getHours();
+      
+      console.log('🕐 [VALIDATE] Fecha:', dateStr, '| Hora:', hours);
+      
+      return hours >= 8 && hours < 18;
+    } catch (error) {
+      console.error('❌ Error validando horario:', error);
+      return false;
+    }
+  };
 
     if (!validateOfficeHours(start_time)) {
       console.log('⚠️ Horario fuera de rango:', start_time);

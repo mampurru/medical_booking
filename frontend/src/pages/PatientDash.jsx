@@ -70,29 +70,7 @@ const PatientDash = () => {
   };
 
   // Crear nueva cita
-  // const handleCreateAppointment = async (e) => {
-  //   e.preventDefault();
-  //   setIsSubmitting(true);
 
-  //   try {
-  //     const payload = {
-  //       doctor_id: formData.doctor_id,
-  //       start_time: formData.start_time,
-  //       end_time: formData.end_time, // ✅ Usamos el end_time calculado
-  //       reason: formData.reason
-  //     };
-
-  //     await api.post('/appointments', payload);
-  //     alert('✅ Cita agendada correctamente');
-  //     setShowNewAppointmentModal(false);
-  //     window.location.reload();
-  //   } catch (error) {
-  //     alert(error.response?.data?.message || 'Error al agendar');
-  //   } finally {
-  //     setIsSubmitting(false);
-  //   }
-  // };
-// ✅ ELIMINA formatDateTimeLocal y usa esto:
 
 const handleCreateAppointment = async (e) => {
   e.preventDefault();
@@ -109,7 +87,7 @@ const handleCreateAppointment = async (e) => {
     
     // Convertir a UTC para enviar al backend
     const payload = {
-      doctor_id: formData.doctor_id,
+      doctor_id: Number(formData.doctor_id),
       start_time: startDateLocal.toISOString(),  
       end_time: endDateLocal.toISOString(),      
       reason: formData.reason

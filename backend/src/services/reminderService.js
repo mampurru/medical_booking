@@ -14,23 +14,25 @@ const sendReminders = async () => {
     const now = new Date();
     
     // ===== RECORDATORIO 24 HORAS =====
-    // Busca citas entre 23 y 25 horas (ventana de 2 horas alrededor de 24h)
-    const [appointments24h] = await pool.query(`
-      SELECT 
-        a.id, a.start_time, a.reason, a.doctor_id, a.reminder_24h_sent,
-        p.user_id as patient_id,
-        u.email as patient_email,
-        u.phone as patient_phone,
-        u.first_name as patient_name
-      FROM appointments a
-      INNER JOIN patients p ON a.patient_id = p.id
-      INNER JOIN users u ON p.user_id = u.id
-      WHERE 
-        a.start_time > NOW()
-        AND TIMESTAMPDIFF(HOUR, CONVERT_TZ(NOW(), '+00:00', '-05:00'), a.start_time) BETWEEN 23 AND 25
-        AND a.status = 'scheduled'
-        AND a.reminder_24h_sent = 0
-    `);
+   const [appointments24h] = await pool.query(`
+    SELECT 
+      a.id, a.start_time, a.reason, a.doctor_id, a.reminder_24h_sent,
+      p.user_id as patient_id,
+      u.email as patient_email,
+      u.phone as patient_phone,
+      u.first_name as patient_name,
+      CONCAT_WS(' ', du.first_name, du.last_name) as doctor_name  
+    FROM appointments a
+    INNER JOIN patients p ON a.patient_id = p.id
+    INNER JOIN users u ON p.user_id = u.id
+    INNER JOIN doctors d ON a.doctor_id = d.id                    
+    INNER JOIN users du ON d.user_id = du.id                      
+    WHERE 
+      a.start_time > NOW()
+      AND TIMESTAMPDIFF(HOUR, CONVERT_TZ(NOW(), '+00:00', '-05:00'), a.start_time) BETWEEN 23 AND 25
+      AND a.status = 'scheduled'
+      AND a.reminder_24h_sent = 0
+  `);
 
     console.log(`📋 [24H] Encontradas ${appointments24h.length} citas para recordatorio 24h`);
 
@@ -48,28 +50,35 @@ const sendReminders = async () => {
         );
       }
       //envio de mensaje sms
-      const smsMsg = `Hola ${appointment.patient_name}, tienes una cita médica mañana ${new Date(appointment.start_time).toLocaleDateString()} con Dr. ${appointment.doctor_name}.`;
-      await sendSmsReminder(appointment.patient_phone, smsMsg);
-    }
+      //const smsMsg = `Hola ${appointment.patient_name}, tienes una cita médica mañana ${new Date(appointment.start_time).toLocaleDateString()} con Dr. ${appointment.doctor_name}.`;
+      // Usar nombre del doctor o un valor por defecto si es undefined/null
+      const doctorName = appointment.doctor_name && appointment.doctor_name.trim() 
+        ? appointment.doctor_name 
+        : 'nuestro equipo médico';
+
+      const smsMsg = `Hola ${appointment.patient_name}, tienes una cita médica mañana ${new Date(appointment.start_time).toLocaleDateString()} con Dr. ${doctorName}.`;
+        await sendSmsReminder(appointment.patient_phone, smsMsg);
+      }
 
     // ===== RECORDATORIO 2 HORAS =====
-    // Busca citas entre 1.5 y 3 horas (ventana de 1.5 horas alrededor de 2h)
     const [appointments2h] = await pool.query(`
-      SELECT 
-        a.id, a.start_time, a.reason, a.doctor_id, a.reminder_2h_sent,
-        p.user_id as patient_id,
-        u.phone as patient_phone,
-        u.email as patient_email,
-        u.first_name as patient_name
-      FROM appointments a
-      INNER JOIN patients p ON a.patient_id = p.id
-      INNER JOIN users u ON p.user_id = u.id
-      WHERE 
-        a.start_time > NOW()
-        AND TIMESTAMPDIFF(HOUR, CONVERT_TZ(NOW(), '+00:00', '-05:00'), a.start_time) BETWEEN 1.5 AND 3
-        AND a.status = 'scheduled'
-        AND a.reminder_2h_sent = 0
-    `);
+    SELECT 
+      a.id, a.start_time, a.reason,
+      u.phone as patient_phone,
+      u.email as patient_email,
+      u.first_name as patient_name,
+      CONCAT_WS(' ', du.first_name, du.last_name) as doctor_name  -- ✅ AGREGADO
+    FROM appointments a
+    INNER JOIN patients p ON a.patient_id = p.id
+    INNER JOIN users u ON p.user_id = u.id
+    INNER JOIN doctors d ON a.doctor_id = d.id                    -- ✅ AGREGADO
+    INNER JOIN users du ON d.user_id = du.id                      -- ✅ AGREGADO
+    WHERE 
+      a.start_time > NOW()
+      AND TIMESTAMPDIFF(HOUR, CONVERT_TZ(NOW(), '+00:00', '-05:00'), a.start_time) BETWEEN 1.5 AND 3
+      AND a.status = 'scheduled'
+      AND a.reminder_2h_sent = 0
+  `);
 
     console.log(`📋 [2H] Encontradas ${appointments2h.length} citas para recordatorio 2h`);
 
@@ -87,7 +96,12 @@ const sendReminders = async () => {
         );
       }
       //envio sms
-      const smsMsg = `⏰ RECORDATORIO: Tu cita es hoy a las ${new Date(appointment.start_time).toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}. Por favor asiste puntualmente.`;
+      //const smsMsg = `⏰ RECORDATORIO: Tu cita es hoy a las ${new Date(appointment.start_time).toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}. Por favor asiste puntualmente.`;
+      const doctorName = appointment.doctor_name && appointment.doctor_name.trim() 
+        ? appointment.doctor_name 
+        : 'nuestro equipo médico';
+
+    const smsMsg = `⏰ RECORDATORIO: Tu cita es hoy a las ${new Date(appointment.start_time).toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})} con Dr. ${doctorName}. Por favor asiste puntualmente.`;
       await sendSmsReminder(appointment.patient_phone, smsMsg);
     }
 

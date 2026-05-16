@@ -131,6 +131,7 @@ const PatientDash = () => {
         end_time: formData.end_time,      
         reason: formData.reason
       };
+      console.log('este es el payload: ', payload);
 
       await api.post('/appointments', payload);
       alert('✅ Cita agendada correctamente');

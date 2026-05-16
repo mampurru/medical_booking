@@ -6,10 +6,25 @@ const {
 } = require('../services/reminderService');
 
 // Helper: Convierte fecha ISO a formato MySQL
+// const formatForMySQL = (dateString) => {
+//   if (!dateString) return null;
+//   // Convierte "2026-05-16T20:00:00.000Z" → "2026-05-16 20:00:00"
+//   return new Date(dateString).toISOString().slice(0, 19).replace('T', ' ');
+// };
+// Helper: Convierte fecha ISO a formato MySQL
 const formatForMySQL = (dateString) => {
   if (!dateString) return null;
-  // Convierte "2026-05-16T20:00:00.000Z" → "2026-05-16 20:00:00"
-  return new Date(dateString).toISOString().slice(0, 19).replace('T', ' ');
+  
+  const date = new Date(dateString);
+  
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const hours = String(date.getUTCHours()).padStart(2, '0');
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+  
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
 // Obtener todas las citas (con filtros)

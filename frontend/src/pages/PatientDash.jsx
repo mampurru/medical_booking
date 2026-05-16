@@ -70,23 +70,55 @@ const PatientDash = () => {
   };
 
   // Crear nueva cita
+  // const handleCreateAppointment = async (e) => {
+  //   e.preventDefault();
+  //   setIsSubmitting(true);
+
+  //   try {
+  //     const payload = {
+  //       doctor_id: formData.doctor_id,
+  //       start_time: formData.start_time,
+  //       end_time: formData.end_time, // ✅ Usamos el end_time calculado
+  //       reason: formData.reason
+  //     };
+
+  //     await api.post('/appointments', payload);
+  //     alert('✅ Cita agendada correctamente');
+  //     setShowNewAppointmentModal(false);
+  //     window.location.reload();
+  //   } catch (error) {
+  //     alert(error.response?.data?.message || 'Error al agendar');
+  //   } finally {
+  //     setIsSubmitting(false);
+  //   }
+  // };
   const handleCreateAppointment = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
+      // === 🕐 CONVERTIR HORA LOCAL A UTC ISO ===
+      // new Date() interpreta el string como hora local del navegador
+      // toISOString() lo convierte a UTC para enviar al backend
+      const startUTC = new Date(formData.start_time).toISOString();
+      const endUTC = new Date(formData.end_time).toISOString();
+      
       const payload = {
         doctor_id: formData.doctor_id,
-        start_time: formData.start_time,
-        end_time: formData.end_time, // ✅ Usamos el end_time calculado
+        start_time: startUTC,  
+        end_time: endUTC,      
         reason: formData.reason
       };
+
+      console.log('🕐 Payload UTC enviado:', payload);
 
       await api.post('/appointments', payload);
       alert('✅ Cita agendada correctamente');
       setShowNewAppointmentModal(false);
       window.location.reload();
+      
     } catch (error) {
+      console.error('❌ Error agendando:', error);
       alert(error.response?.data?.message || 'Error al agendar');
     } finally {
       setIsSubmitting(false);

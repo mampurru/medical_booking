@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Calendar from '../components/Calendar';
 import AppointmentModal from '../components/AppointmentModal';
@@ -17,6 +17,7 @@ const PatientDash = () => {
   // Formulario para nueva cita
   const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false);
   const [doctors, setDoctors] = useState([]);
+  const [appointments, setAppointments] = useState([]);
   const [formData, setFormData] = useState({
     doctor_id: '',
     reason: '',
@@ -24,22 +25,32 @@ const PatientDash = () => {
     end_time: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Cargar médicos
-  React.useEffect(() => {
-    const fetchDoctors = async () => {
-      try {
-        const response = await api.get('/doctors');
-        if (response.data.success) {
-          setDoctors(response.data.data.doctors);
-        }
-      } catch (error) {
-        console.error('Error cargando médicos', error);
-      }
-    };
+  useEffect(() => {
     fetchDoctors();
+    fetchAppointments();
   }, []);
 
+  // Cargar médicos
+  const fetchDoctors = async () => {
+    try {
+      const response = await api.get('/doctors');
+      if (response.data.success) {
+        setDoctors(response.data.data.doctors);
+      }
+    } catch (error) {
+      console.error('Error cargando médicos', error);
+    }
+  };
+  const fetchAppointments = async () => {
+    try {
+      const response = await api.get('/appointments');
+      if (response.data.success) {
+        setAppointments(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error cargando citas', error);
+    }
+  };
   // ✅ REEMPLAZA formatDateTimeLocal por esto:
   const formatDateTimeLocal = (date) => {
     const year = date.getFullYear();
@@ -72,42 +83,6 @@ const PatientDash = () => {
   // Crear nueva cita
 
 
-const handleCreateAppointment = async (e) => {
-  e.preventDefault();
-  setIsSubmitting(true);
-
-  try {
-    // Obtener la fecha y hora del input (que está en formato local)
-    // El input datetime-local devuelve: "2026-05-16T15:30"
-    const startDateLocal = new Date(formData.start_time);
-    const endDateLocal = new Date(formData.end_time);
-    
-    console.log('🕐 Fecha local inicio:', startDateLocal);
-    console.log('🕐 Fecha local fin:', endDateLocal);
-    
-    // Convertir a UTC para enviar al backend
-    const payload = {
-      doctor_id: Number(formData.doctor_id),
-      start_time: startDateLocal.toISOString(),  
-      end_time: endDateLocal.toISOString(),      
-      reason: formData.reason
-    };
-
-    console.log('🕐 Payload UTC enviado:', payload);
-
-    await api.post('/appointments', payload);
-    alert('✅ Cita agendada correctamente');
-    setShowNewAppointmentModal(false);
-    window.location.reload();
-    
-  } catch (error) {
-    console.error('❌ Error agendando:', error);
-    alert(error.response?.data?.message || 'Error al agendar');
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-
 // ✅ También actualiza el onChange del input para mantener consistencia:
 <input
   type="datetime-local"
@@ -136,8 +111,39 @@ const handleCreateAppointment = async (e) => {
   }}
 />
 
+  const handleCreateAppointment = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      const startDateLocal = new Date(formData.start_time);
+      const endDateLocal = new Date(formData.end_time);
+      
+      const payload = {
+        doctor_id: Number(formData.doctor_id),
+        start_time: startDateLocal.toISOString(),  
+        end_time: endDateLocal.toISOString(),      
+        reason: formData.reason
+      };
+
+      await api.post('/appointments', payload);
+      alert('✅ Cita agendada correctamente');
+      setShowNewAppointmentModal(false);
+      
+      // ✅ Recargar las citas en lugar de reload completo
+      await fetchAppointments();
+      
+    } catch (error) {
+      console.error('❌ Error agendando:', error);
+      alert(error.response?.data?.message || 'Error al agendar');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSuccess = () => {
-    window.location.reload();
+    fetchAppointments(); 
+    setShowModal(false);
   };
 
   return (

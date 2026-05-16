@@ -241,24 +241,45 @@ exports.createAppointment = async (req, res) => {
       });
     }
 
-    if (new Date(start_time) < new Date()) {
+    // if (new Date(start_time) < new Date()) {
+    //   return res.status(400).json({ 
+    //     success: false, 
+    //     message: 'No se pueden agendar citas en el pasado' 
+    //   });
+    // }
+    const nowColombia = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+    const appointmentTime = new Date(new Date(start_time).toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+
+    if (appointmentTime < nowColombia) {
       return res.status(400).json({ 
         success: false, 
         message: 'No se pueden agendar citas en el pasado' 
       });
     }
-        // === 🕐 VALIDAR HORARIO DE OFICINA (8 AM - 6 PM Colombia) ===
+    // === 🕐 VALIDAR HORARIO DE OFICINA (8 AM - 6 PM Colombia) ===
+    // const validateOfficeHours = (dateString) => {
+    //   if (!dateString) return false;
+      
+    //   try {
+    //     // Crear objeto Date desde el string ISO
+    //     const date = new Date(dateString);
+        
+    //     // Obtener la hora (0-23)
+    //     const hours = date.getHours();
+        
+    //     // Validar: 8 <= hours < 18 (8 AM a 5:59 PM)
+    //     return hours >= 8 && hours < 18;
+    //   } catch (error) {
+    //     console.error('❌ Error validando horario:', error);
+    //     return false;
+    //   }
+    // };
     const validateOfficeHours = (dateString) => {
       if (!dateString) return false;
-      
       try {
-        // Crear objeto Date desde el string ISO
-        const date = new Date(dateString);
-        
-        // Obtener la hora (0-23)
-        const hours = date.getHours();
-        
-        // Validar: 8 <= hours < 18 (8 AM a 5:59 PM)
+        // Convertir a hora de Colombia antes de validar
+        const dateColombia = new Date(new Date(dateString).toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+        const hours = dateColombia.getHours();
         return hours >= 8 && hours < 18;
       } catch (error) {
         console.error('❌ Error validando horario:', error);

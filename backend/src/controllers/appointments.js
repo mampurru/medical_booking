@@ -5,6 +5,13 @@ const {
   sendPatientCancellation      
 } = require('../services/reminderService');
 
+// Helper: Convierte fecha ISO a formato MySQL
+const formatForMySQL = (dateString) => {
+  if (!dateString) return null;
+  // Convierte "2026-05-16T20:00:00.000Z" → "2026-05-16 20:00:00"
+  return new Date(dateString).toISOString().slice(0, 19).replace('T', ' ');
+};
+
 // Obtener todas las citas (con filtros)
 exports.getAppointments = async (req, res) => {
   const { doctor_id, patient_id, status, start_date, end_date } = req.query;
@@ -241,12 +248,6 @@ exports.createAppointment = async (req, res) => {
       });
     }
 
-    // if (new Date(start_time) < new Date()) {
-    //   return res.status(400).json({ 
-    //     success: false, 
-    //     message: 'No se pueden agendar citas en el pasado' 
-    //   });
-    // }
     const nowColombia = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
     const appointmentTime = new Date(new Date(start_time).toLocaleString('en-US', { timeZone: 'America/Bogota' }));
 
@@ -260,28 +261,10 @@ exports.createAppointment = async (req, res) => {
         message: 'No se pueden agendar citas en el pasado' 
       });
     }
-    // === 🕐 VALIDAR HORARIO DE OFICINA (8 AM - 6 PM Colombia) ===
-    // const validateOfficeHours = (dateString) => {
-    //   if (!dateString) return false;
-      
-    //   try {
-    //     // Crear objeto Date desde el string ISO
-    //     const date = new Date(dateString);
-        
-    //     // Obtener la hora (0-23)
-    //     const hours = date.getHours();
-        
-    //     // Validar: 8 <= hours < 18 (8 AM a 5:59 PM)
-    //     return hours >= 8 && hours < 18;
-    //   } catch (error) {
-    //     console.error('❌ Error validando horario:', error);
-    //     return false;
-    //   }
-    // };
+
     const validateOfficeHours = (dateString) => {
       if (!dateString) return false;
       try {
-        // Convertir a hora de Colombia antes de validar
         const dateColombia = new Date(new Date(dateString).toLocaleString('en-US', { timeZone: 'America/Bogota' }));
         const hours = dateColombia.getHours();
         return hours >= 8 && hours < 18;
@@ -298,13 +281,19 @@ exports.createAppointment = async (req, res) => {
         message: 'Las citas solo pueden agendarse en horario de oficina (8:00 AM - 6:00 PM)'
       });
     }
-    // ============================================================
-    // Crear la cita
+
+    // Crear la cita con formato MySQL
     const [result] = await pool.query(
       `INSERT INTO appointments 
        (patient_id, doctor_id, start_time, end_time, reason, status, reminder_sent) 
        VALUES (?, ?, ?, ?, ?, 'scheduled', FALSE)`,
-      [finalPatientId, doctor_id, start_time, end_time, reason || null]
+      [
+        finalPatientId, 
+        doctor_id, 
+        formatForMySQL(start_time),
+        formatForMySQL(end_time),
+        reason || null
+      ]
     );
 
     // Obtener la cita creada con datos completos
@@ -766,3 +755,5 @@ exports.getDoctorAvailability = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error del servidor' });
   }
 };
+
+module.exports = exports;

@@ -161,6 +161,7 @@ const PatientDash = () => {
       <Calendar
         userId={user?.id}
         userRole={user?.role}
+        appointments={appointments}
         onEventClick={handleEventClick}
         onViewDateChange={handleDateSelect}
       />

@@ -23,17 +23,34 @@ const Calendar = ({
         if (app.status === 'completed') color = '#22c55e';
         if (app.status === 'cancelled') color = '#ef4444';
 
+        // const cleanDate = (dateStr) => {
+        //   return dateStr
+        //     .replace('Z', '')
+        //     .replace(' ', 'T')
+        //     .split('.')[0];
+        // };
         const cleanDate = (dateStr) => {
-          return dateStr
-            .replace('Z', '')
-            .replace(' ', 'T')
-            .split('.')[0];
+          if (!dateStr) return '';
+          
+          // Crear objeto Date desde UTC
+          const date = new Date(dateStr);
+          
+          // Formatear como string local para FullCalendar
+          // Esto hace que FullCalendar muestre la hora correcta en Colombia
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          const seconds = String(date.getSeconds()).padStart(2, '0');
+          
+          return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
         };
 
         return {
           id: app.id,
           title: userRole === 'patient' ? `Dr. ${app.doctor_name}` : app.patient_name,
-          start: cleanDate(app.start_time),
+          start: cleanDate(app.start_time),  
           end: cleanDate(app.end_time),
           backgroundColor: color,
           borderColor: color,

@@ -1,39 +1,46 @@
-import React, { useState } from 'react'; // ✅ Quitar useEffect si no lo usas para otra cosa
+import React, { useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import esLocale from '@fullcalendar/core/locales/es';
+import api from '../services/api';
 
-// ✅ Recibir appointments como prop
-const Calendar = ({ userId, userRole, appointments, onEventClick, onViewDateChange }) => {
-  const [loading, setLoading] = useState(false); // Ya no necesitas loading para fetch
+// ✅ appointments = [] como valor por defecto
+const Calendar = ({ 
+  userId, 
+  userRole, 
+  appointments = [], 
+  onEventClick, 
+  onViewDateChange 
+}) => {
+  const [loading, setLoading] = useState(false);
 
-  // ✅ Elimina TODO el useEffect y fetchAppointments de aquí
+  // ✅ Validación segura antes del map
+  const events = Array.isArray(appointments) 
+    ? appointments.map((app) => {
+        let color = '#3b82f6';
+        if (app.status === 'completed') color = '#22c55e';
+        if (app.status === 'cancelled') color = '#ef4444';
 
-  // Convierte appointments al formato de FullCalendar
-  const events = appointments.map((app) => {
-    let color = '#3b82f6';
-    if (app.status === 'completed') color = '#22c55e';
-    if (app.status === 'cancelled') color = '#ef4444';
+        const cleanDate = (dateStr) => {
+          return dateStr
+            .replace('Z', '')
+            .replace(' ', 'T')
+            .split('.')[0];
+        };
 
-    const cleanDate = (dateStr) => {
-      return dateStr
-        .replace('Z', '')
-        .replace(' ', 'T')
-        .split('.')[0];
-    };
-
-    return {
-      id: app.id,
-      title: userRole === 'patient' ? `Dr. ${app.doctor_name}` : app.patient_name,
-      start: cleanDate(app.start_time),
-      end: cleanDate(app.end_time),
-      backgroundColor: color,
-      borderColor: color,
-      extendedProps: { ...app }
-    };
-  });
+        return {
+          id: app.id,
+          title: userRole === 'patient' ? `Dr. ${app.doctor_name}` : app.patient_name,
+          start: cleanDate(app.start_time),
+          end: cleanDate(app.end_time),
+          backgroundColor: color,
+          borderColor: color,
+          extendedProps: { ...app }
+        };
+      })
+    : [];
 
   const handleEventClick = (info) => {
     if (onEventClick) {
@@ -52,7 +59,7 @@ const Calendar = ({ userId, userRole, appointments, onEventClick, onViewDateChan
       <FullCalendar
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView="timeGridWeek"
-        events={events}  // ✅ Usar events directamente
+        events={events}
         timeZone="local"
         locale={esLocale}
         headerToolbar={{

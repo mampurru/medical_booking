@@ -250,6 +250,10 @@ exports.createAppointment = async (req, res) => {
     const nowColombia = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
     const appointmentTime = new Date(new Date(start_time).toLocaleString('en-US', { timeZone: 'America/Bogota' }));
 
+    console.log('🕐 [DEBUG] Hora actual Colombia:', nowColombia);
+    console.log('🕐 [DEBUG] Hora de la cita:', appointmentTime);
+    console.log('🕐 [DEBUG] ¿Cita en el pasado?', appointmentTime < nowColombia);
+
     if (appointmentTime < nowColombia) {
       return res.status(400).json({ 
         success: false, 

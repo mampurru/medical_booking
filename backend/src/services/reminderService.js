@@ -67,12 +67,12 @@ const sendReminders = async () => {
       u.phone as patient_phone,
       u.email as patient_email,
       u.first_name as patient_name,
-      CONCAT_WS(' ', du.first_name, du.last_name) as doctor_name  -- ✅ AGREGADO
+      CONCAT_WS(' ', du.first_name, du.last_name) as doctor_name  
     FROM appointments a
     INNER JOIN patients p ON a.patient_id = p.id
     INNER JOIN users u ON p.user_id = u.id
-    INNER JOIN doctors d ON a.doctor_id = d.id                    -- ✅ AGREGADO
-    INNER JOIN users du ON d.user_id = du.id                      -- ✅ AGREGADO
+    INNER JOIN doctors d ON a.doctor_id = d.id                    
+    INNER JOIN users du ON d.user_id = du.id                      
     WHERE 
       a.start_time > NOW()
       AND TIMESTAMPDIFF(HOUR, CONVERT_TZ(NOW(), '+00:00', '-05:00'), a.start_time) BETWEEN 1.5 AND 3

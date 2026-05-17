@@ -15,12 +15,10 @@ const {
 // Helper: Recibir fecha local y guardarla tal cual
 const formatForMySQL = (dateString) => {
   if (!dateString) return null;
-  
-  // Si viene con T, reemplazar por espacio
-  // "2026-05-16T15:00" → "2026-05-16 15:00:00"
-  return dateString
-    .replace('T', ' ')
-    .includes(':') ? dateString + ':00' : dateString;  // Agregar segundos si no vienen
+  // Recibe "2026-05-18T08:00" → devuelve "2026-05-18 08:00:00"
+  const withoutT = dateString.replace('T', ' ');
+  // Agregar segundos si no vienen
+  return withoutT.length === 16 ? withoutT + ':00' : withoutT;
 };
 
 // Obtener todas las citas (con filtros)
@@ -260,7 +258,8 @@ exports.createAppointment = async (req, res) => {
     }
 
     const nowColombia = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
-    const appointmentTime = new Date(new Date(start_time).toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+    //const appointmentTime = new Date(new Date(start_time).toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+    const appointmentTime = new Date(start_time.replace('T', ' ').replace(/-/g, '/'));
 
     console.log('🕐 [DEBUG] Hora actual Colombia:', nowColombia);
     console.log('🕐 [DEBUG] Hora de la cita:', appointmentTime);
@@ -286,21 +285,19 @@ exports.createAppointment = async (req, res) => {
     // };
     const validateOfficeHours = (dateString) => {
     if (!dateString) return false;
-    
-    try {
-      const dateStr = dateString.replace('T', ' ');
-      const date = new Date(dateStr + ':00'); 
-      
-      const hours = date.getHours();
-      
-      console.log('🕐 [VALIDATE] Fecha:', dateStr, '| Hora:', hours);
-      
-      return hours >= 8 && hours < 18;
-    } catch (error) {
-      console.error('❌ Error validando horario:', error);
-      return false;
-    }
-  };
+      try {
+        // Extraer la hora directamente del string sin crear un Date
+        const timePart = dateString.includes('T') 
+          ? dateString.split('T')[1] 
+          : dateString.split(' ')[1];
+        const hours = parseInt(timePart.split(':')[0], 10);
+        console.log('🕐 [VALIDATE] Hora extraída:', hours);
+        return hours >= 8 && hours < 18;
+      } catch (error) {
+        console.error('❌ Error validando horario:', error);
+        return false;
+      }
+    };
 
     if (!validateOfficeHours(start_time)) {
       console.log('⚠️ Horario fuera de rango:', start_time);

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Calendar from '../components/Calendar';
 import api from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 const DoctorDash = () => {
   const { user } = useAuth();
@@ -124,6 +125,7 @@ const DoctorDash = () => {
       minute: '2-digit'
     });
   };
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">

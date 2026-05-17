@@ -299,19 +299,32 @@ const sendAdminCancellation = async (appointment, patientEmail, patientName, doc
  * Enviar email cuando se CREA una cita
  */
 const sendAppointmentCreated = async (appointment, patientEmail, patientName, doctorName) => {
-  const date = new Date(appointment.start_time);
+  // const date = new Date(appointment.start_time);
+  // const formattedTime = date.toLocaleTimeString('es-ES', { 
+  //   hour: '2-digit', 
+  //   minute: '2-digit',
+  //   timeZone: 'America/Bogota'  
+  // });
+
+  // const formattedDate = date.toLocaleDateString('es-ES', { 
+  //   weekday: 'long', 
+  //   year: 'numeric', 
+  //   month: 'long', 
+  //   day: 'numeric',
+  //   timeZone: 'America/Bogota'  
+  // });
+  // ✅DESPUÉS - parsear el string directamente como hora local
+  const dateStr = appointment.start_time.toString().replace('T', ' ').replace(/-/g, '/');
+  const date = new Date(dateStr); // Sin zona horaria = hora local del servidor
+
   const formattedTime = date.toLocaleTimeString('es-ES', { 
     hour: '2-digit', 
-    minute: '2-digit',
-    timeZone: 'America/Bogota'  
+    minute: '2-digit'
+    // Sin timeZone, usa la hora tal cual está guardada
   });
-
   const formattedDate = date.toLocaleDateString('es-ES', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric',
-    timeZone: 'America/Bogota'  
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    // Sin timeZone
   });
 
   const msg = {

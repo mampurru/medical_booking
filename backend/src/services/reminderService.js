@@ -3,6 +3,13 @@ const { sendAppointmentReminder, sendTwoHourReminder } = require('./emailService
 const sgMail = require('@sendgrid/mail');
 const { sendSmsReminder } = require('./smsService');
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+// Helper para parsear fechas sin conversión de zona horaria
+const parseLocalDate = (dateString) => {
+  const str = dateString.toString().replace('T', ' ').replace(/-/g, '/');
+  return new Date(str);
+};
+
 /**
  * Cron Job: Enviar recordatorios (24h y 2h antes)
  * Se ejecuta cada 15 minutos
@@ -14,25 +21,25 @@ const sendReminders = async () => {
     const now = new Date();
     
     // ===== RECORDATORIO 24 HORAS =====
-   const [appointments24h] = await pool.query(`
-    SELECT 
-      a.id, a.start_time, a.reason, a.doctor_id, a.reminder_24h_sent,
-      p.user_id as patient_id,
-      u.email as patient_email,
-      u.phone as patient_phone,
-      u.first_name as patient_name,
-      CONCAT_WS(' ', du.first_name, du.last_name) as doctor_name  
-    FROM appointments a
-    INNER JOIN patients p ON a.patient_id = p.id
-    INNER JOIN users u ON p.user_id = u.id
-    INNER JOIN doctors d ON a.doctor_id = d.id                    
-    INNER JOIN users du ON d.user_id = du.id                      
-    WHERE 
-      a.start_time > NOW()
-      AND TIMESTAMPDIFF(HOUR, CONVERT_TZ(NOW(), '+00:00', '-05:00'), a.start_time) BETWEEN 23 AND 25
-      AND a.status = 'scheduled'
-      AND a.reminder_24h_sent = 0
-  `);
+    const [appointments24h] = await pool.query(`
+      SELECT 
+        a.id, a.start_time, a.reason, a.doctor_id, a.reminder_24h_sent,
+        p.user_id as patient_id,
+        u.email as patient_email,
+        u.phone as patient_phone,
+        u.first_name as patient_name,
+        CONCAT_WS(' ', du.first_name, du.last_name) as doctor_name  
+      FROM appointments a
+      INNER JOIN patients p ON a.patient_id = p.id
+      INNER JOIN users u ON p.user_id = u.id
+      INNER JOIN doctors d ON a.doctor_id = d.id                    
+      INNER JOIN users du ON d.user_id = du.id                      
+      WHERE 
+        a.start_time > NOW()
+        AND TIMESTAMPDIFF(HOUR, CONVERT_TZ(NOW(), '+00:00', '-05:00'), a.start_time) BETWEEN 23 AND 25
+        AND a.status = 'scheduled'
+        AND a.reminder_24h_sent = 0
+    `);
 
     console.log(`📋 [24H] Encontradas ${appointments24h.length} citas para recordatorio 24h`);
 
@@ -49,36 +56,35 @@ const sendReminders = async () => {
           [appointment.id]
         );
       }
-      //envio de mensaje sms
-      //const smsMsg = `Hola ${appointment.patient_name}, tienes una cita médica mañana ${new Date(appointment.start_time).toLocaleDateString()} con Dr. ${appointment.doctor_name}.`;
-      // Usar nombre del doctor o un valor por defecto si es undefined/null
+
       const doctorName = appointment.doctor_name && appointment.doctor_name.trim() 
         ? appointment.doctor_name 
         : 'nuestro equipo médico';
 
-      const smsMsg = `Hola ${appointment.patient_name}, tienes una cita médica mañana ${new Date(appointment.start_time).toLocaleDateString()} con Dr. ${doctorName}.`;
-        await sendSmsReminder(appointment.patient_phone, smsMsg);
-      }
+      const aptDate = parseLocalDate(appointment.start_time);
+      const smsMsg = `Hola ${appointment.patient_name}, tienes una cita médica mañana ${aptDate.toLocaleDateString()} con Dr. ${doctorName}.`;
+      await sendSmsReminder(appointment.patient_phone, smsMsg);
+    }
 
     // ===== RECORDATORIO 2 HORAS =====
     const [appointments2h] = await pool.query(`
-    SELECT 
-      a.id, a.start_time, a.reason,
-      u.phone as patient_phone,
-      u.email as patient_email,
-      u.first_name as patient_name,
-      CONCAT_WS(' ', du.first_name, du.last_name) as doctor_name  
-    FROM appointments a
-    INNER JOIN patients p ON a.patient_id = p.id
-    INNER JOIN users u ON p.user_id = u.id
-    INNER JOIN doctors d ON a.doctor_id = d.id                    
-    INNER JOIN users du ON d.user_id = du.id                      
-    WHERE 
-      a.start_time > NOW()
-      AND TIMESTAMPDIFF(HOUR, CONVERT_TZ(NOW(), '+00:00', '-05:00'), a.start_time) BETWEEN 1.5 AND 3
-      AND a.status = 'scheduled'
-      AND a.reminder_2h_sent = 0
-  `);
+      SELECT 
+        a.id, a.start_time, a.reason,
+        u.phone as patient_phone,
+        u.email as patient_email,
+        u.first_name as patient_name,
+        CONCAT_WS(' ', du.first_name, du.last_name) as doctor_name  
+      FROM appointments a
+      INNER JOIN patients p ON a.patient_id = p.id
+      INNER JOIN users u ON p.user_id = u.id
+      INNER JOIN doctors d ON a.doctor_id = d.id                    
+      INNER JOIN users du ON d.user_id = du.id                      
+      WHERE 
+        a.start_time > NOW()
+        AND TIMESTAMPDIFF(HOUR, CONVERT_TZ(NOW(), '+00:00', '-05:00'), a.start_time) BETWEEN 1.5 AND 3
+        AND a.status = 'scheduled'
+        AND a.reminder_2h_sent = 0
+    `);
 
     console.log(`📋 [2H] Encontradas ${appointments2h.length} citas para recordatorio 2h`);
 
@@ -95,13 +101,13 @@ const sendReminders = async () => {
           [appointment.id]
         );
       }
-      //envio sms
-      //const smsMsg = `⏰ RECORDATORIO: Tu cita es hoy a las ${new Date(appointment.start_time).toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}. Por favor asiste puntualmente.`;
+
       const doctorName = appointment.doctor_name && appointment.doctor_name.trim() 
         ? appointment.doctor_name 
         : 'nuestro equipo médico';
 
-    const smsMsg = `⏰ RECORDATORIO: Tu cita es hoy a las ${new Date(appointment.start_time).toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})} con Dr. ${doctorName}. Por favor asiste puntualmente.`;
+      const aptDate = parseLocalDate(appointment.start_time);
+      const smsMsg = `⏰ RECORDATORIO: Tu cita es hoy a las ${aptDate.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})} con Dr. ${doctorName}. Por favor asiste puntualmente.`;
       await sendSmsReminder(appointment.patient_phone, smsMsg);
     }
 
@@ -111,15 +117,13 @@ const sendReminders = async () => {
     console.error('❌ [CRON] Error en sendReminders:', error.message);
   }
 };
+
 // ============================================================================
-// 📧 NUEVAS FUNCIONES PARA CANCELACIONES
+// 📧 FUNCIONES DE EMAIL
 // ============================================================================
 
-/**
- * Enviar email cuando se APRUEBA una cancelación
- */
 const sendCancellationApproved = async (appointment, patientEmail, patientName, adminNotes) => {
-  const date = new Date(appointment.start_time);
+  const date = parseLocalDate(appointment.start_time);
   const formattedDate = date.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const formattedTime = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
@@ -152,11 +156,8 @@ const sendCancellationApproved = async (appointment, patientEmail, patientName, 
   }
 };
 
-/**
- * Enviar email cuando se RECHAZA una cancelación
- */
 const sendCancellationRejected = async (appointment, patientEmail, patientName, adminNotes) => {
-  const date = new Date(appointment.start_time);
+  const date = parseLocalDate(appointment.start_time);
   const formattedDate = date.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const formattedTime = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
@@ -189,12 +190,9 @@ const sendCancellationRejected = async (appointment, patientEmail, patientName, 
   }
 };
 
-/**
- * Enviar email cuando se REASIGNA una cita
- */
 const sendReassignment = async (oldAppointment, newAppointment, patientEmail, patientName, adminNotes) => {
-  const oldDate = new Date(oldAppointment.start_time);
-  const newDate = new Date(newAppointment.start_time);
+  const oldDate = parseLocalDate(oldAppointment.start_time);
+  const newDate = parseLocalDate(newAppointment.start_time);
   
   const formattedOldDate = oldDate.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const formattedOldTime = oldDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
@@ -236,34 +234,20 @@ const sendReassignment = async (oldAppointment, newAppointment, patientEmail, pa
     return false;
   }
 };
-/**
- * Enviar email cuando el ADMIN CANCELA DIRECTAMENTE (sin solicitud del paciente)
- */
+
 const sendAdminCancellation = async (appointment, patientEmail, patientName, doctorName, adminNotes) => {
-  const date = new Date(appointment.start_time);
-  const formattedDate = date.toLocaleDateString('es-ES', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  });
-  const formattedTime = date.toLocaleTimeString('es-ES', { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  });
+  const date = parseLocalDate(appointment.start_time);
+  const formattedDate = date.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const formattedTime = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
   const msg = {
     to: patientEmail,
-    from: { 
-      email: process.env.SENDGRID_FROM_EMAIL, 
-      name: process.env.SENDGRID_FROM_NAME || 'Medical Booking' 
-    },
+    from: { email: process.env.SENDGRID_FROM_EMAIL, name: process.env.SENDGRID_FROM_NAME || 'Medical Booking' },
     subject: `❌ Cita Cancelada - Cita #${appointment.id}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2 style="color: #dc2626;">Hola, ${patientName}</h2>
         <p>Te informamos que tu cita ha sido <strong style="color: #dc2626;">CANCELADA</strong> por la administración de la clínica.</p>
-        
         <div style="background-color: #fef2f2; border: 2px solid #dc2626; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <p style="font-size: 18px; font-weight: bold; color: #dc2626;">❌ Cita Cancelada</p>
           <p><strong>📅 Fecha original:</strong> ${formattedDate}</p>
@@ -271,19 +255,14 @@ const sendAdminCancellation = async (appointment, patientEmail, patientName, doc
           <p><strong>👨‍⚕️ Doctor:</strong> ${doctorName}</p>
           ${adminNotes ? `<p style="margin-top: 15px; padding: 10px; background-color: #fff; border-radius: 4px;"><strong>📝 Motivo:</strong><br>${adminNotes}</p>` : ''}
         </div>
-
         <p style="color: #6b7280; background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
           <strong>ℹ️ Información importante:</strong><br>
           Lamentamos los inconvenientes. Puedes agendar una nueva cita desde nuestra plataforma cuando tengas disponibilidad.
         </p>
-        
         <div style="margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-          <p style="font-size: 12px; color: #9ca3af;">
-            Medical Booking System - Notificación de cancelación
-          </p>
+          <p style="font-size: 12px; color: #9ca3af;">Medical Booking System - Notificación de cancelación</p>
         </div>
-      </div>
-    `
+      </div>`
   };
 
   try {
@@ -295,50 +274,20 @@ const sendAdminCancellation = async (appointment, patientEmail, patientName, doc
     return false;
   }
 };
-/**
- * Enviar email cuando se CREA una cita
- */
+
 const sendAppointmentCreated = async (appointment, patientEmail, patientName, doctorName) => {
-  // const date = new Date(appointment.start_time);
-  // const formattedTime = date.toLocaleTimeString('es-ES', { 
-  //   hour: '2-digit', 
-  //   minute: '2-digit',
-  //   timeZone: 'America/Bogota'  
-  // });
-
-  // const formattedDate = date.toLocaleDateString('es-ES', { 
-  //   weekday: 'long', 
-  //   year: 'numeric', 
-  //   month: 'long', 
-  //   day: 'numeric',
-  //   timeZone: 'America/Bogota'  
-  // });
-  // ✅DESPUÉS - parsear el string directamente como hora local
-  const dateStr = appointment.start_time.toString().replace('T', ' ').replace(/-/g, '/');
-  const date = new Date(dateStr); // Sin zona horaria = hora local del servidor
-
-  const formattedTime = date.toLocaleTimeString('es-ES', { 
-    hour: '2-digit', 
-    minute: '2-digit'
-    // Sin timeZone, usa la hora tal cual está guardada
-  });
-  const formattedDate = date.toLocaleDateString('es-ES', { 
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-    // Sin timeZone
-  });
+  const date = parseLocalDate(appointment.start_time);
+  const formattedTime = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  const formattedDate = date.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   const msg = {
     to: patientEmail,
-    from: { 
-      email: process.env.SENDGRID_FROM_EMAIL, 
-      name: process.env.SENDGRID_FROM_NAME || 'Medical Booking' 
-    },
+    from: { email: process.env.SENDGRID_FROM_EMAIL, name: process.env.SENDGRID_FROM_NAME || 'Medical Booking' },
     subject: `✅ Cita Confirmada - Cita #${appointment.id}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2 style="color: #059669;">Hola, ${patientName}</h2>
         <p>Tu cita médica ha sido <strong style="color: #059669;">CONFIRMADA</strong>.</p>
-        
         <div style="background-color: #f0fdf4; border: 2px solid #059669; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <p style="font-size: 18px; font-weight: bold; color: #059669;">✅ Cita Programada</p>
           <p><strong>📅 Fecha:</strong> ${formattedDate}</p>
@@ -346,21 +295,16 @@ const sendAppointmentCreated = async (appointment, patientEmail, patientName, do
           <p><strong>👨‍⚕️ Doctor:</strong> ${doctorName}</p>
           <p><strong>📝 Motivo:</strong> ${appointment.reason || 'Consulta general'}</p>
         </div>
-
         <p style="color: #6b7280; background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
           <strong>ℹ️ Instrucciones:</strong><br>
           - Llega 15 minutos antes de tu cita<br>
           - Trae tu documento de identidad<br>
           - Si necesitas reagendar, hazlo desde la plataforma
         </p>
-        
         <div style="margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-          <p style="font-size: 12px; color: #9ca3af;">
-            Medical Booking System - Confirmación de cita
-          </p>
+          <p style="font-size: 12px; color: #9ca3af;">Medical Booking System - Confirmación de cita</p>
         </div>
-      </div>
-    `
+      </div>`
   };
 
   try {
@@ -372,53 +316,34 @@ const sendAppointmentCreated = async (appointment, patientEmail, patientName, do
     return false;
   }
 };
-/**
- * Enviar email cuando el PACIENTE cancela su propia cita
- */
+
 const sendPatientCancellation = async (appointment, patientEmail, patientName, doctorName) => {
-  const date = new Date(appointment.start_time);
-  const formattedDate = date.toLocaleDateString('es-ES', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  });
-  const formattedTime = date.toLocaleTimeString('es-ES', { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  });
+  const date = parseLocalDate(appointment.start_time);
+  const formattedDate = date.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const formattedTime = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
   const msg = {
     to: patientEmail,
-    from: { 
-      email: process.env.SENDGRID_FROM_EMAIL, 
-      name: process.env.SENDGRID_FROM_NAME || 'Medical Booking' 
-    },
+    from: { email: process.env.SENDGRID_FROM_EMAIL, name: process.env.SENDGRID_FROM_NAME || 'Medical Booking' },
     subject: `❌ Cita Cancelada - Cita #${appointment.id}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2 style="color: #dc2626;">Hola, ${patientName}</h2>
         <p>Tu cita ha sido <strong style="color: #dc2626;">CANCELADA</strong> exitosamente.</p>
-        
         <div style="background-color: #fef2f2; border: 2px solid #dc2626; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <p style="font-size: 18px; font-weight: bold; color: #dc2626;">❌ Cita Cancelada</p>
           <p><strong>📅 Fecha original:</strong> ${formattedDate}</p>
           <p><strong>⏰ Hora:</strong> ${formattedTime}</p>
           <p><strong>👨‍⚕️ Doctor:</strong> ${doctorName}</p>
         </div>
-
         <p style="color: #6b7280; background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
           <strong>ℹ️ Información:</strong><br>
           Si necesitas agendar una nueva cita, puedes hacerlo desde nuestra plataforma en cualquier momento.
         </p>
-        
         <div style="margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-          <p style="font-size: 12px; color: #9ca3af;">
-            Medical Booking System - Cancelación de cita
-          </p>
+          <p style="font-size: 12px; color: #9ca3af;">Medical Booking System - Cancelación de cita</p>
         </div>
-      </div>
-    `
+      </div>`
   };
 
   try {

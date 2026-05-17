@@ -8,6 +8,7 @@ import PatientDash from './pages/PatientDash';
 import DoctorDash from './pages/DoctorDash';  
 import AdminDash from './pages/AdminDash';    
 import Register from './pages/Register';
+import DoctorSchedule from './pages/DoctorSchedule';
 
 // Componente de navegación (lo crearemos en el Paso 2)
 import Navbar from './components/Navbar';
@@ -111,6 +112,12 @@ function App() {
               </div>
             } />
             <Route path="/register" element={<Register />} />
+            
+            <Route path="/doctor/schedule" element={
+              <ProtectedRoute allowedRoles={['doctor']}>
+                <DoctorSchedule />
+              </ProtectedRoute>
+            } />
           </Routes>
         </div>
       </Router>

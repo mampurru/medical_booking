@@ -28,5 +28,24 @@ exports.getAllDoctors = async (req, res) => {
     });
   }
 };
+exports.getMyProfile = async (req, res) => {
+  try {
+    const [doctor] = await pool.query(
+      `SELECT d.id, d.specialty, d.consultation_duration,
+              u.first_name, u.last_name, u.email
+       FROM doctors d
+       JOIN users u ON d.user_id = u.id
+       WHERE d.user_id = ?`,
+      [req.user.id]
+    );
 
+    if (doctor.length === 0) {
+      return res.status(404).json({ success: false, message: 'Perfil no encontrado' });
+    }
+
+    res.json({ success: true, data: doctor[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error del servidor' });
+  }
+};
 module.exports = exports;

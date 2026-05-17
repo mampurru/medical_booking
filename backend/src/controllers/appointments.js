@@ -704,6 +704,82 @@ exports.deleteAppointment = async (req, res) => {
 };
 
 // Obtener disponibilidad de un médico (horarios libres)
+// exports.getDoctorAvailability = async (req, res) => {
+//   const { doctor_id, date } = req.query;
+
+//   try {
+//     if (!doctor_id || !date) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'doctor_id y date son requeridos' 
+//       });
+//     }
+
+//     const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'long' });
+    
+//     const [availability] = await pool.query(
+//       `SELECT * FROM doctor_availability 
+//        WHERE doctor_id = ? AND day_of_week = ? AND is_active = TRUE`,
+//       [doctor_id, dayName]
+//     );
+
+//     if (availability.length === 0) {
+//       return res.json({
+//         success: true,
+//         message: 'El médico no tiene disponibilidad este día',
+//         data: { available_slots: [] }
+//       });
+//     }
+
+//     const [appointments] = await pool.query(
+//       `SELECT start_time, end_time FROM appointments
+//        WHERE doctor_id = ? 
+//        AND DATE(start_time) = ?
+//        AND status != 'cancelled'`,
+//       [doctor_id, date]
+//     );
+
+//     const availableSlots = [];
+//     const slotDuration = 30;
+
+//     availability.forEach(slot => {
+//       let currentTime = new Date(`${date}T${slot.start_time}`);
+//       const endTime = new Date(`${date}T${slot.end_time}`);
+
+//       while (currentTime < endTime) {
+//         const slotEnd = new Date(currentTime.getTime() + slotDuration * 60000);
+        
+//         const hasConflict = appointments.some(apt => {
+//           const aptStart = new Date(apt.start_time);
+//           const aptEnd = new Date(apt.end_time);
+//           return (currentTime < aptEnd && slotEnd > aptStart);
+//         });
+
+//         if (!hasConflict && slotEnd <= endTime) {
+//           availableSlots.push({
+//             start: currentTime.toISOString(),
+//             end: slotEnd.toISOString()
+//           });
+//         }
+
+//         currentTime = slotEnd;
+//       }
+//     });
+
+//     res.json({
+//       success: true,
+//       data: {
+//         available_slots: availableSlots,
+//         date,
+//         doctor_id
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Error obteniendo disponibilidad:', error);
+//     res.status(500).json({ success: false, message: 'Error del servidor' });
+//   }
+// };
 exports.getDoctorAvailability = async (req, res) => {
   const { doctor_id, date } = req.query;
 
@@ -715,8 +791,8 @@ exports.getDoctorAvailability = async (req, res) => {
       });
     }
 
-    const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'long' });
-    
+    const dayName = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+
     const [availability] = await pool.query(
       `SELECT * FROM doctor_availability 
        WHERE doctor_id = ? AND day_of_week = ? AND is_active = TRUE`,
@@ -731,48 +807,68 @@ exports.getDoctorAvailability = async (req, res) => {
       });
     }
 
+    const schedule = availability[0];
+
     const [appointments] = await pool.query(
       `SELECT start_time, end_time FROM appointments
-       WHERE doctor_id = ? 
-       AND DATE(start_time) = ?
-       AND status != 'cancelled'`,
+       WHERE doctor_id = ? AND DATE(start_time) = ? AND status != 'cancelled'`,
       [doctor_id, date]
     );
 
-    const availableSlots = [];
+    const timeToMinutes = (timeStr) => {
+      const str = timeStr.toString().includes('T') 
+        ? timeStr.toString().split('T')[1].slice(0, 5)
+        : timeStr.toString().slice(0, 5);
+      const [h, m] = str.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    const minutesToTime = (mins) => {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+
     const slotDuration = 30;
+    let current = timeToMinutes(schedule.start_time);
+    const end = timeToMinutes(schedule.end_time);
+    const lunchStart = schedule.lunch_start ? timeToMinutes(schedule.lunch_start) : null;
+    const lunchEnd = schedule.lunch_end ? timeToMinutes(schedule.lunch_end) : null;
 
-    availability.forEach(slot => {
-      let currentTime = new Date(`${date}T${slot.start_time}`);
-      const endTime = new Date(`${date}T${slot.end_time}`);
+    const availableSlots = [];
 
-      while (currentTime < endTime) {
-        const slotEnd = new Date(currentTime.getTime() + slotDuration * 60000);
-        
-        const hasConflict = appointments.some(apt => {
-          const aptStart = new Date(apt.start_time);
-          const aptEnd = new Date(apt.end_time);
-          return (currentTime < aptEnd && slotEnd > aptStart);
-        });
+    while (current < end) {
+      const slotEnd = current + slotDuration;
 
-        if (!hasConflict && slotEnd <= endTime) {
-          availableSlots.push({
-            start: currentTime.toISOString(),
-            end: slotEnd.toISOString()
-          });
+      // Saltar hora de almuerzo
+      if (lunchStart !== null && lunchEnd !== null) {
+        if (current < lunchEnd && slotEnd > lunchStart) {
+          current = lunchEnd;
+          continue;
         }
-
-        currentTime = slotEnd;
       }
-    });
+
+      if (slotEnd > end) break;
+
+      const hasConflict = appointments.some(apt => {
+        const aptStart = timeToMinutes(apt.start_time);
+        const aptEnd = timeToMinutes(apt.end_time);
+        return current < aptEnd && slotEnd > aptStart;
+      });
+
+      if (!hasConflict) {
+        availableSlots.push({
+          start: `${date}T${minutesToTime(current)}`,
+          end: `${date}T${minutesToTime(slotEnd)}`
+        });
+      }
+
+      current = slotEnd;
+    }
 
     res.json({
       success: true,
-      data: {
-        available_slots: availableSlots,
-        date,
-        doctor_id
-      }
+      data: { available_slots: availableSlots, date, doctor_id }
     });
 
   } catch (error) {

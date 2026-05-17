@@ -136,6 +136,14 @@ const DoctorDash = () => {
           Gestiona tu agenda, agrega notas clínicas y reprograma citas arrastrándolas
         </p>
       </div>
+      <div className="flex items-center gap-4 mb-6">
+        <button
+          onClick={() => navigate('/doctor/schedule')}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+        >
+          🕐 Mi Horario
+        </button>
+       </div>
 
       {/* Estadísticas rápidas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">

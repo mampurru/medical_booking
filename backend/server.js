@@ -14,6 +14,8 @@ const { sendReminders } = require('./src/services/reminderService');
 
 const app = express();
 const server = http.createServer(app);
+const doctorAvailabilityRoutes = require('./routes/doctorAvailability');
+app.use('/api/doctor-availability', doctorAvailabilityRoutes);
 
 // ✅ CONFIGURAR SOCKET.IO
 const io = new Server(server, {

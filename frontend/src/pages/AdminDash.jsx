@@ -51,6 +51,14 @@ const AdminDash = () => {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectNote, setRejectNote] = useState('');
 
+  //reports
+  const [reportsByDoctor, setReportsByDoctor] = useState([]);
+  const [reportsByDate, setReportsByDate] = useState([]);
+  const [reportDateStart, setReportDateStart] = useState('');
+  const [reportDateEnd, setReportDateEnd] = useState('');
+  const [reportsTabActive, setReportsTabActive] = useState('by-doctor');
+  const [reportsLoading2, setReportsLoading2] = useState(false);
+
   // Cargar notificaciones del backend
   const loadNotifications = async () => {
     try {
@@ -84,13 +92,55 @@ const AdminDash = () => {
       await api.put('/admin/notifications/read-all');
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       setUnreadCount(0);
+      setShowNotifDropdown(false); // ← agregar esto
     } catch (error) {
       console.error('Error marcando todas como leídas:', error);
     }
   };
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.notif-dropdown-container')) {
+        setShowNotifDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
 
+  const loadReportsByDoctor = async () => {
+    setReportsLoading2(true);
+    try {
+      const res = await api.get('/admin/reports/by-doctor');
+      if (res.data.success) setReportsByDoctor(res.data.results);
+    } catch (error) {
+      console.error('Error cargando reporte por doctor:', error);
+    } finally {
+      setReportsLoading2(false);
+    }
+  };
 
+  const loadReportsByDate = async () => {
+    setReportsLoading2(true);
+    try {
+      const params = new URLSearchParams();
+      if (reportDateStart) params.append('start_date', reportDateStart);
+      if (reportDateEnd) params.append('end_date', reportDateEnd);
+      const res = await api.get(`/admin/reports/by-date?${params}`);
+      if (res.data.success) setReportsByDate(res.data.results);
+    } catch (error) {
+      console.error('Error cargando reporte por fecha:', error);
+    } finally {
+      setReportsLoading2(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'reports') {
+      loadReportsByDoctor();
+      loadReportsByDate();
+    }
+  }, [activeTab]);
   // Cargar al iniciar
   useEffect(() => {
     if (user?.id) {
@@ -642,7 +692,7 @@ const AdminDash = () => {
               </div>
 
               {/* 🔔 Campanita de notificaciones */}
-              <div className="relative">
+              <div className="relative notif-dropdown-container">
                 <button 
                   onClick={() => setShowNotifDropdown(!showNotifDropdown)}
                   className="relative p-2 text-gray-400 hover:text-gray-600 transition rounded-full hover:bg-gray-100"
@@ -651,9 +701,9 @@ const AdminDash = () => {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                   </svg>
-                  {notifications.length > 0 && (
+                  {unreadCount > 0 && (
                     <span className="absolute top-0 right-0 block h-5 w-5 transform -translate-y-1/4 translate-x-1/4 rounded-full ring-2 ring-white bg-red-500 text-xs text-white font-bold flex items-center justify-center animate-pulse">
-                      {notifications.length > 9 ? '9+' : notifications.length}
+                      {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   )}
                 </button>
@@ -949,18 +999,163 @@ const AdminDash = () => {
 
             {/* 📈 REPORTES */}
             {activeTab === 'reports' && (
-              <div className="space-y-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border text-center">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">📊 Reportes Avanzados</h3>
-                  <p className="text-gray-500">Próximamente: Gráficos de ingresos, tiempos de espera, especialidades más solicitadas...</p>
-                  <div className="mt-4 flex justify-center gap-4">
-                    <button className="px-4 py-2 bg-gray-200 rounded-lg text-sm" disabled>Por Médico</button>
-                    <button className="px-4 py-2 bg-gray-200 rounded-lg text-sm" disabled>Por Fecha</button>
-                    <button className="px-4 py-2 bg-gray-200 rounded-lg text-sm" disabled>Exportar CSV</button>
+            <div className="space-y-6">
+              {/* Sub-tabs */}
+              <div className="bg-white border-b rounded-t-xl">
+                <nav className="flex space-x-8 px-4">
+                  <button
+                    onClick={() => setReportsTabActive('by-doctor')}
+                    className={`py-3 px-1 border-b-2 font-medium text-sm transition ${
+                      reportsTabActive === 'by-doctor'
+                        ? 'border-purple-600 text-purple-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    👨‍⚕️ Por Médico
+                  </button>
+                  <button
+                    onClick={() => setReportsTabActive('by-date')}
+                    className={`py-3 px-1 border-b-2 font-medium text-sm transition ${
+                      reportsTabActive === 'by-date'
+                        ? 'border-purple-600 text-purple-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    📅 Por Fecha
+                  </button>
+                </nav>
+              </div>
+
+              {/* Reporte por Doctor */}
+              {reportsTabActive === 'by-doctor' && (
+                <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                  <div className="p-4 border-b flex justify-between items-center">
+                    <h3 className="font-semibold text-gray-800">Citas por Médico</h3>
+                    <button onClick={loadReportsByDoctor}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">
+                      Actualizar
+                    </button>
+                  </div>
+                  {reportsLoading2 ? (
+                    <div className="p-8 text-center">
+                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mx-auto"></div>
+                    </div>
+                  ) : (
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Médico</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Total</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Completadas</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Canceladas</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">% Completadas</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {reportsByDoctor.map((row, i) => (
+                          <tr key={i} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 font-medium text-gray-800">{row.doctor_name}</td>
+                            <td className="px-4 py-3 text-center text-gray-700">{row.total_citas}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                                {row.completadas}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold">
+                                {row.canceladas}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center text-gray-700">
+                              {row.total_citas > 0 
+                                ? `${Math.round((row.completadas / row.total_citas) * 100)}%`
+                                : '0%'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {/* Reporte por Fecha */}
+              {reportsTabActive === 'by-date' && (
+                <div className="space-y-4">
+                  {/* Filtros */}
+                  <div className="bg-white p-4 rounded-xl shadow-sm border flex items-center gap-4 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-gray-700">Desde:</label>
+                      <input type="date" value={reportDateStart}
+                        onChange={e => setReportDateStart(e.target.value)}
+                        className="border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-gray-700">Hasta:</label>
+                      <input type="date" value={reportDateEnd}
+                        onChange={e => setReportDateEnd(e.target.value)}
+                        className="border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <button onClick={loadReportsByDate}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">
+                      Filtrar
+                    </button>
+                    <button onClick={() => { setReportDateStart(''); setReportDateEnd(''); loadReportsByDate(); }}
+                      className="text-sm text-gray-500 hover:text-gray-700">
+                      Limpiar
+                    </button>
+                  </div>
+
+                  <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    {reportsLoading2 ? (
+                      <div className="p-8 text-center">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mx-auto"></div>
+                      </div>
+                    ) : (
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Fecha</th>
+                            <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Total</th>
+                            <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Programadas</th>
+                            <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Completadas</th>
+                            <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Canceladas</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {reportsByDate.map((row, i) => (
+                            <tr key={i} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 font-medium text-gray-800">
+                                {new Date(row.fecha + 'T12:00:00').toLocaleDateString('es-ES', {
+                                  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                                })}
+                              </td>
+                              <td className="px-4 py-3 text-center font-bold text-gray-700">{row.total}</td>
+                              <td className="px-4 py-3 text-center">
+                                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                                  {row.scheduled}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                                  {row.completed}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold">
+                                  {row.cancelled}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+          )}
 
             {/* ⚙️ CONFIGURACIÓN - SOLO SUPER ADMIN */}
             {activeTab === 'settings' && isAdminSuper && (

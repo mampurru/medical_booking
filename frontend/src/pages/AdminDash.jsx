@@ -1032,7 +1032,7 @@ const AdminDash = () => {
                   <div className="p-4 border-b flex justify-between items-center">
                     <h3 className="font-semibold text-gray-800">Citas por Médico</h3>
                     <button onClick={loadReportsByDoctor}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
                       Actualizar
                     </button>
                   </div>
@@ -1097,7 +1097,7 @@ const AdminDash = () => {
                         className="border rounded-lg px-3 py-2 text-sm" />
                     </div>
                     <button onClick={loadReportsByDate}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
                       Filtrar
                     </button>
                     <button onClick={() => { setReportDateStart(''); setReportDateEnd(''); loadReportsByDate(); }}
@@ -1109,7 +1109,7 @@ const AdminDash = () => {
                   <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                     {reportsLoading2 ? (
                       <div className="p-8 text-center">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mx-auto"></div>
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600 mx-auto"></div>
                       </div>
                     ) : (
                       <table className="w-full">
@@ -1126,7 +1126,10 @@ const AdminDash = () => {
                           {reportsByDate.map((row, i) => (
                             <tr key={i} className="hover:bg-gray-50">
                               <td className="px-4 py-3 font-medium text-gray-800">
-                                {new Date(row.fecha + 'T12:00:00').toLocaleDateString('es-ES', {
+                                {new Date(row.fecha instanceof Date 
+                                  ? row.fecha 
+                                  : row.fecha + 'T12:00:00'
+                                ).toLocaleDateString('es-ES', {
                                   weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
                                 })}
                               </td>

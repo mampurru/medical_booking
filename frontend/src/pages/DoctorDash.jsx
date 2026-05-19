@@ -126,7 +126,7 @@ const DoctorDash = () => {
       minute: '2-digit'
     });
   };
-  const navigate = useNavigate();
+  
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">

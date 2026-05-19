@@ -12,6 +12,7 @@ const DoctorDash = () => {
   const [doctorId, setDoctorId] = useState(null);
   const [clinicalNotes, setClinicalNotes] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const navigate = useNavigate();
   
   // Estados para el modal de cancelación
   const [cancelReason, setCancelReason] = useState('');

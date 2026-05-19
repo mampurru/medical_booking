@@ -61,8 +61,12 @@ const sendReminders = async () => {
         ? appointment.doctor_name 
         : 'nuestro equipo médico';
 
-      const aptDate = parseLocalDate(appointment.start_time);
-      const smsMsg = `Hola ${appointment.patient_name}, tienes una cita médica mañana ${aptDate.toLocaleDateString()} con Dr. ${doctorName}.`;
+      // const aptDate = parseLocalDate(appointment.start_time);
+      // const smsMsg = `Hola ${appointment.patient_name}, tienes una cita médica mañana ${aptDate.toLocaleDateString()} con Dr. ${doctorName}.`;
+      const aptDate = appointment.start_time instanceof Date 
+        ? appointment.start_time 
+        : parseLocalDate(appointment.start_time);
+      const smsMsg = `Hola ${appointment.patient_name}, tienes una cita médica mañana ${aptDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })} con Dr. ${doctorName}.`;
       await sendSmsReminder(appointment.patient_phone, smsMsg);
     }
 
@@ -106,7 +110,11 @@ const sendReminders = async () => {
         ? appointment.doctor_name 
         : 'nuestro equipo médico';
 
-      const aptDate = parseLocalDate(appointment.start_time);
+      // const aptDate = parseLocalDate(appointment.start_time);
+      // const smsMsg = `⏰ RECORDATORIO: Tu cita es hoy a las ${aptDate.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})} con Dr. ${doctorName}. Por favor asiste puntualmente.`;
+      const aptDate = appointment.start_time instanceof Date 
+        ? appointment.start_time 
+        : parseLocalDate(appointment.start_time);
       const smsMsg = `⏰ RECORDATORIO: Tu cita es hoy a las ${aptDate.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})} con Dr. ${doctorName}. Por favor asiste puntualmente.`;
       await sendSmsReminder(appointment.patient_phone, smsMsg);
     }

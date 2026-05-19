@@ -13,6 +13,7 @@ const DoctorSchedule = () => {
   const [availability, setAvailability] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [doctorId, setDoctorId] = useState(null);
 
   useEffect(() => { fetchAvailability(); }, []);
 

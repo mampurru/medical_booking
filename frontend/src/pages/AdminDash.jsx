@@ -1126,12 +1126,13 @@ const AdminDash = () => {
                           {reportsByDate.map((row, i) => (
                             <tr key={i} className="hover:bg-gray-50">
                               <td className="px-4 py-3 font-medium text-gray-800">
-                                {new Date(row.fecha instanceof Date 
-                                  ? row.fecha 
-                                  : row.fecha + 'T12:00:00'
-                                ).toLocaleDateString('es-ES', {
-                                  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-                                })}
+                                {(() => {
+                                  if (!row.fecha) return 'Sin fecha';
+                                  const d = row.fecha instanceof Date ? row.fecha : new Date(row.fecha.toString().slice(0, 10) + 'T12:00:00');
+                                  return d.toLocaleDateString('es-ES', {
+                                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                                  });
+                                })()}
                               </td>
                               <td className="px-4 py-3 text-center font-bold text-gray-700">{row.total}</td>
                               <td className="px-4 py-3 text-center">

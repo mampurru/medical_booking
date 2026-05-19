@@ -658,6 +658,117 @@ const AdminDash = () => {
     return labels[user?.role] || 'Admin';
   };
 
+  // Descargar reporte de citas como CSV
+const downloadAppointmentsCSV = () => {
+  const headers = ['Paciente', 'Email Paciente', 'Doctor', 'Especialidad', 'Fecha/Hora', 'Estado', 'Motivo'];
+  
+  const rows = filteredAppointments.map(app => [
+    `${app.patient_first_name || ''} ${app.patient_last_name || ''}`.trim() || app.patient_name || '',
+    app.patient_email || '',
+    `${app.doctor_first_name || ''} ${app.doctor_last_name || ''}`.trim() || app.doctor_name || '',
+    app.specialty_name || app.specialty || '',
+    app.start_time ? new Date(app.start_time).toLocaleString('es-ES') : '',
+    app.status === 'scheduled' ? 'Programada' :
+    app.status === 'completed' ? 'Completada' :
+    app.status === 'cancelled' ? 'Cancelada' :
+    app.status === 'rescheduled' ? 'Reprogramada' : app.status,
+    app.reason || ''
+  ]);
+
+  const csv = [headers, ...rows]
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `citas_${filterDate || 'todas'}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// Descargar reporte por doctor como CSV
+const downloadByDoctorCSV = () => {
+  const headers = ['Médico', 'Total Citas', 'Completadas', 'Canceladas', '% Completadas'];
+  
+  const rows = reportsByDoctor.map(row => [
+    row.doctor_name,
+    row.total_citas,
+    row.completadas,
+    row.canceladas,
+    row.total_citas > 0 ? `${Math.round((row.completadas / row.total_citas) * 100)}%` : '0%'
+  ]);
+
+  const csv = [headers, ...rows]
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `reporte_medicos_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// Descargar reporte por fecha como CSV
+const downloadByDateCSV = () => {
+  const headers = ['Fecha', 'Total', 'Programadas', 'Completadas', 'Canceladas'];
+  
+  const rows = reportsByDate.map(row => {
+    const d = row.fecha instanceof Date ? row.fecha : new Date(row.fecha.toString().slice(0,10) + 'T12:00:00');
+    return [
+      d.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+      row.total,
+      row.scheduled,
+      row.completed,
+      row.cancelled
+    ];
+  });
+
+  const csv = [headers, ...rows]
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `reporte_fechas_${reportDateStart || 'inicio'}_${reportDateEnd || 'fin'}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// Descargar reporte de cancelaciones como CSV
+const downloadCancellationReportsCSV = () => {
+  const headers = ['Doctor', 'Cita #', 'Fecha Cita', 'Motivo Cancelación', 'Aprobado Por', 'Rol Admin', 'Notas Admin', 'Fecha Aprobación'];
+  
+  const rows = cancellationReports.map(report => [
+    `${report.doctor_first_name} ${report.doctor_last_name}`,
+    report.appointment_id,
+    report.appointment_date ? new Date(report.appointment_date).toLocaleString('es-ES') : 'N/A',
+    report.cancellation_reason || '',
+    `${report.admin_first_name} ${report.admin_last_name}`,
+    report.admin_role === 'super_admin' ? 'Super Admin' :
+    report.admin_role === 'admin_general' ? 'Admin General' : 'Admin Especialidad',
+    report.admin_notes || '',
+    new Date(report.created_at).toLocaleString('es-ES')
+  ]);
+
+  const csv = [headers, ...rows]
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cancelaciones_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white shadow-sm border-b">
@@ -948,6 +1059,12 @@ const AdminDash = () => {
                   >
                     Actualizar
                   </button>
+                  <button
+                    onClick={downloadAppointmentsCSV}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    ⬇️ Descargar CSV
+                  </button>
                 </div>
 
                 {/* Tabla de Citas */}
@@ -1035,6 +1152,12 @@ const AdminDash = () => {
                       className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
                       Actualizar
                     </button>
+                    <button
+                      onClick={downloadByDoctorCSV}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                    >
+                      ⬇️ Descargar CSV
+                    </button>
                   </div>
                   {reportsLoading2 ? (
                     <div className="p-8 text-center">
@@ -1099,6 +1222,12 @@ const AdminDash = () => {
                     <button onClick={loadReportsByDate}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
                       Filtrar
+                    </button>
+                    <button
+                      onClick={downloadByDateCSV}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                    >
+                      ⬇️ Descargar CSV
                     </button>
                     <button onClick={() => { setReportDateStart(''); setReportDateEnd(''); loadReportsByDate(); }}
                       className="text-sm text-gray-500 hover:text-gray-700">
@@ -1473,6 +1602,12 @@ const AdminDash = () => {
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm flex items-center gap-2"
                     >
                       Actualizar
+                    </button>
+                    <button
+                      onClick={downloadByDateCSV}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                    >
+                      ⬇️ Descargar CSV
                     </button>
                   </div>
                 </div>

@@ -13,6 +13,7 @@ const DoctorDash = () => {
   const [clinicalNotes, setClinicalNotes] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const navigate = useNavigate();
+  const [appointments, setAppointments] = useState([]);
   
   // Estados para el modal de cancelación
   const [cancelReason, setCancelReason] = useState('');
@@ -32,6 +33,7 @@ const DoctorDash = () => {
       }
     };
     fetchDoctorData();
+    fetchAppointments();
   }, []);
 
   // Cuando se hace clic en una cita
@@ -126,6 +128,16 @@ const DoctorDash = () => {
       minute: '2-digit'
     });
   };
+  const fetchAppointments = async () => {
+    try {
+      const response = await api.get('/appointments');
+      if (response.data.success) {
+        setAppointments(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error cargando citas', error);
+    }
+  };
   
 
   return (
@@ -168,6 +180,7 @@ const DoctorDash = () => {
       <Calendar
         userId={doctorId}
         userRole="doctor"
+        appointments={appointments} 
         onEventClick={handleEventClick}
         onViewDateChange={null}
       />

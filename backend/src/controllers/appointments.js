@@ -299,12 +299,52 @@ exports.createAppointment = async (req, res) => {
       }
     };
 
-    if (!validateOfficeHours(start_time)) {
-      console.log('⚠️ Horario fuera de rango:', start_time);
+    // Validar contra horario real del doctor
+    const dayName = new Date(start_time.replace('T', ' ').replace(/-/g, '/'))
+      .toLocaleDateString('en-US', { weekday: 'long' });
+
+    const [doctorSchedule] = await pool.query(
+      `SELECT * FROM doctor_availability 
+      WHERE doctor_id = ? AND day_of_week = ? AND is_active = TRUE`,
+      [doctor_id, dayName]
+    );
+
+    if (doctorSchedule.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Las citas solo pueden agendarse en horario de oficina (8:00 AM - 6:00 PM)'
+        message: 'El médico no trabaja ese día'
       });
+    }
+
+    const schedule = doctorSchedule[0];
+    const timePart = start_time.includes('T') 
+      ? start_time.split('T')[1].slice(0, 5) 
+      : start_time.split(' ')[1].slice(0, 5);
+
+    const [h, m] = timePart.split(':').map(Number);
+    const requestedMinutes = h * 60 + m;
+
+    const toMinutes = (t) => {
+      const [hh, mm] = t.toString().slice(0, 5).split(':').map(Number);
+      return hh * 60 + mm;
+    };
+
+    if (requestedMinutes < toMinutes(schedule.start_time) || 
+        requestedMinutes + 30 > toMinutes(schedule.end_time)) {
+      return res.status(400).json({
+        success: false,
+        message: `El médico trabaja de ${schedule.start_time.slice(0,5)} a ${schedule.end_time.slice(0,5)} ese día`
+      });
+    }
+
+    if (schedule.lunch_start && schedule.lunch_end) {
+      if (requestedMinutes >= toMinutes(schedule.lunch_start) && 
+          requestedMinutes < toMinutes(schedule.lunch_end)) {
+        return res.status(400).json({
+          success: false,
+          message: `El médico está en almuerzo de ${schedule.lunch_start.slice(0,5)} a ${schedule.lunch_end.slice(0,5)}`
+        });
+      }
     }
 
     // Crear la cita con formato MySQL

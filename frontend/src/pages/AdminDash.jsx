@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { io } from 'socket.io-client';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 const AdminDash = () => {
   const { user } = useAuth();
@@ -92,7 +94,7 @@ const AdminDash = () => {
       await api.put('/admin/notifications/read-all');
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       setUnreadCount(0);
-      setShowNotifDropdown(false); // ← agregar esto
+      setShowNotifDropdown(false);
     } catch (error) {
       console.error('Error marcando todas como leídas:', error);
     }
@@ -279,7 +281,7 @@ const AdminDash = () => {
       if (res.data.success) {
         alert('❌ Cancelación rechazada. La cita sigue programada.');
         setShowRejectModal(false);
-        loadCancellationRequests(); // Recargar lista (esto la quita de pendientes)
+        loadCancellationRequests();
       }
     } catch (error) {
       alert('❌ Error: ' + (error.response?.data?.message || 'No se pudo rechazar'));
@@ -295,7 +297,7 @@ const AdminDash = () => {
       //  Auto-refresh cada 30 segundos
       const interval = setInterval(() => {
         loadCancellationRequests();
-      }, 30000); // 30000 ms = 30 segundos
+      }, 30000);
       
       // Limpiar el intervalo al desmontar
       return () => clearInterval(interval);
@@ -475,13 +477,9 @@ const AdminDash = () => {
     
     // Cargar doctores de la misma especialidad (o todos si es admin general)
     try {
-      // Asumiendo que tienes un endpoint para listar doctores, si no, usa /admin/users filtrado
-      // Por ahora, usaremos una llamada genérica o la que tengas para doctores
-      // Si no tienes un endpoint específico, podemos usar /admin/users?role=doctor
       const res = await api.get('/admin/users'); 
       if (res.data.success) {
         const doctors = res.data.users.filter(u => u.role === 'doctor');
-        // Filtrar por especialidad si es necesario (lógica simple)
         setAvailableDoctors(doctors);
       }
     } catch (error) {
@@ -629,7 +627,7 @@ const AdminDash = () => {
       { id: 'users', label: '👥 Usuarios', icon: '👥' },
       { id: 'appointments', label: '📅 Citas', icon: '📅' },
       { id: 'reports', label: '📈 Reportes', icon: '📈' },
-      { id: 'cancellations', label: '🚫 Cancelaciones', icon: '🚫' }, // ✅ NUEVA
+      { id: 'cancellations', label: '🚫 Cancelaciones', icon: '🚫' },
     ];
     
     // Solo super_admin ve Config
@@ -658,9 +656,23 @@ const AdminDash = () => {
     return labels[user?.role] || 'Admin';
   };
 
-  // Descargar reporte de citas como CSV
-const downloadAppointmentsCSV = () => {
-  const headers = ['Paciente', 'Email Paciente', 'Doctor', 'Especialidad', 'Fecha/Hora', 'Estado', 'Motivo'];
+// Descargar reporte de citas como PDF
+const downloadAppointmentsPDF = () => {
+  const doc = new jsPDF();
+  
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Reporte de Citas Médicas', 14, 20);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Generado: ${new Date().toLocaleString('es-ES')}`, 14, 30);
+  
+  if (filterDate) {
+    doc.text(`Filtro de fecha: ${filterDate}`, 14, 35);
+  }
+  
+  const headers = [['Paciente', 'Email', 'Doctor', 'Especialidad', 'Fecha/Hora', 'Estado', 'Motivo']];
   
   const rows = filteredAppointments.map(app => [
     `${app.patient_first_name || ''} ${app.patient_last_name || ''}`.trim() || app.patient_name || '',
@@ -674,23 +686,45 @@ const downloadAppointmentsCSV = () => {
     app.status === 'rescheduled' ? 'Reprogramada' : app.status,
     app.reason || ''
   ]);
-
-  const csv = [headers, ...rows]
-    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    .join('\n');
-
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `citas_${filterDate || 'todas'}_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  
+  doc.autoTable({
+    head: headers,
+    body: rows,
+    startY: 45,
+    theme: 'striped',
+    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontSize: 9 },
+    styles: { fontSize: 8, cellPadding: 3 },
+    columnStyles: {
+      0: { cellWidth: 30 },
+      1: { cellWidth: 35 },
+      2: { cellWidth: 30 },
+      3: { cellWidth: 25 },
+      4: { cellWidth: 25 },
+      5: { cellWidth: 20 },
+      6: { cellWidth: 35 }
+    }
+  });
+  
+  const finalY = doc.lastAutoTable.finalY || 50;
+  doc.setFontSize(8);
+  doc.text('Medical Booking System - Reporte generado automáticamente', 14, finalY + 10);
+  
+  doc.save(`citas_${filterDate || 'todas'}_${new Date().toISOString().slice(0,10)}.pdf`);
 };
 
-// Descargar reporte por doctor como CSV
-const downloadByDoctorCSV = () => {
-  const headers = ['Médico', 'Total Citas', 'Completadas', 'Canceladas', '% Completadas'];
+// Descargar reporte por doctor como PDF
+const downloadByDoctorPDF = () => {
+  const doc = new jsPDF();
+  
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Citas por Médico', 14, 20);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Generado: ${new Date().toLocaleString('es-ES')}`, 14, 30);
+  
+  const headers = [['Médico', 'Total Citas', 'Completadas', 'Canceladas', '% Completadas']];
   
   const rows = reportsByDoctor.map(row => [
     row.doctor_name,
@@ -699,82 +733,142 @@ const downloadByDoctorCSV = () => {
     row.canceladas,
     row.total_citas > 0 ? `${Math.round((row.completadas / row.total_citas) * 100)}%` : '0%'
   ]);
-
-  const csv = [headers, ...rows]
-    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    .join('\n');
-
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `reporte_medicos_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  
+  doc.autoTable({
+    head: headers,
+    body: rows,
+    startY: 40,
+    theme: 'grid',
+    headStyles: { fillColor: [5, 150, 105], textColor: 255, fontSize: 9 },
+    styles: { fontSize: 9, cellPadding: 4 },
+    columnStyles: {
+      0: { cellWidth: 50 },
+      1: { cellWidth: 25, halign: 'center' },
+      2: { cellWidth: 25, halign: 'center' },
+      3: { cellWidth: 25, halign: 'center' },
+      4: { cellWidth: 30, halign: 'center' }
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && (data.column.index === 2 || data.column.index === 3)) {
+        const value = parseInt(data.cell.text[0]);
+        if (data.column.index === 2 && value > 0) {
+          data.cell.styles.fillColor = [220, 252, 231];
+          data.cell.styles.textColor = [22, 101, 52];
+        } else if (data.column.index === 3 && value > 0) {
+          data.cell.styles.fillColor = [254, 242, 242];
+          data.cell.styles.textColor = [185, 28, 28];
+        }
+      }
+    }
+  });
+  
+  doc.save(`reporte_medicos_${new Date().toISOString().slice(0,10)}.pdf`);
 };
 
-// Descargar reporte por fecha como CSV
-const downloadByDateCSV = () => {
-  const headers = ['Fecha', 'Total', 'Programadas', 'Completadas', 'Canceladas'];
+// Descargar reporte por fecha como PDF
+const downloadByDatePDF = () => {
+  const doc = new jsPDF();
+  
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Reporte de Citas por Fecha', 14, 20);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Generado: ${new Date().toLocaleString('es-ES')}`, 14, 30);
+  
+  if (reportDateStart || reportDateEnd) {
+    doc.text(`Periodo: ${reportDateStart || 'Inicio'} - ${reportDateEnd || 'Fin'}`, 14, 35);
+  }
+  
+  const headers = [['Fecha', 'Total', 'Programadas', 'Completadas', 'Canceladas']];
   
   const rows = reportsByDate.map(row => {
-    const d = row.fecha instanceof Date ? row.fecha : new Date(row.fecha.toString().slice(0,10) + 'T12:00:00');
+    const d = row.fecha instanceof Date ? row.fecha : new Date(row.fecha?.toString?.().slice(0,10) + 'T12:00:00');
     return [
-      d.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+      d.toLocaleDateString('es-ES', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }),
       row.total,
       row.scheduled,
       row.completed,
       row.cancelled
     ];
   });
-
-  const csv = [headers, ...rows]
-    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    .join('\n');
-
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `reporte_fechas_${reportDateStart || 'inicio'}_${reportDateEnd || 'fin'}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  
+  doc.autoTable({
+    head: headers,
+    body: rows,
+    startY: 45,
+    theme: 'striped',
+    headStyles: { fillColor: [99, 102, 241], textColor: 255, fontSize: 9 },
+    styles: { fontSize: 9, cellPadding: 4 },
+    columnStyles: {
+      0: { cellWidth: 50 },
+      1: { cellWidth: 25, halign: 'center', fontStyle: 'bold' },
+      2: { cellWidth: 25, halign: 'center' },
+      3: { cellWidth: 25, halign: 'center' },
+      4: { cellWidth: 25, halign: 'center' }
+    }
+  });
+  
+  const fileName = `reporte_fechas_${reportDateStart || 'inicio'}_${reportDateEnd || 'fin'}.pdf`;
+  doc.save(fileName);
 };
 
-// Descargar reporte de cancelaciones como CSV
-const downloadCancellationReportsCSV = () => {
-  const headers = ['Doctor', 'Cita #', 'Fecha Cita', 'Motivo Cancelación', 'Aprobado Por', 'Rol Admin', 'Notas Admin', 'Fecha Aprobación'];
+// Descargar reporte de cancelaciones como PDF
+const downloadCancellationReportsPDF = () => {
+  const doc = new jsPDF();
+  
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Reporte de Cancelaciones Aprobadas', 14, 20);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Generado: ${new Date().toLocaleString('es-ES')}`, 14, 30);
+  
+  const headers = [
+    ['Doctor', 'Cita #', 'Fecha Cita', 'Motivo', 'Aprobado Por', 'Rol', 'Notas', 'Fecha']
+  ];
   
   const rows = cancellationReports.map(report => [
     `${report.doctor_first_name} ${report.doctor_last_name}`,
     report.appointment_id,
     report.appointment_date ? new Date(report.appointment_date).toLocaleString('es-ES') : 'N/A',
-    report.cancellation_reason || '',
+    report.cancellation_reason?.substring(0, 30) + (report.cancellation_reason?.length > 30 ? '...' : '') || '',
     `${report.admin_first_name} ${report.admin_last_name}`,
     report.admin_role === 'super_admin' ? 'Super Admin' :
-    report.admin_role === 'admin_general' ? 'Admin General' : 'Admin Especialidad',
-    report.admin_notes || '',
-    new Date(report.created_at).toLocaleString('es-ES')
+    report.admin_role === 'admin_general' ? 'Admin General' : 'Admin Esp.',
+    report.admin_notes?.substring(0, 25) + (report.admin_notes?.length > 25 ? '...' : '') || '-',
+    new Date(report.created_at).toLocaleDateString('es-ES')
   ]);
-
-  const csv = [headers, ...rows]
-    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    .join('\n');
-
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `cancelaciones_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  
+  doc.autoTable({
+    head: headers,
+    body: rows,
+    startY: 40,
+    theme: 'plain',
+    headStyles: { fillColor: [220, 38, 38], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+    styles: { fontSize: 7, cellPadding: 2 },
+    columnStyles: {
+      0: { cellWidth: 30 },
+      1: { cellWidth: 15, halign: 'center' },
+      2: { cellWidth: 25 },
+      3: { cellWidth: 35 },
+      4: { cellWidth: 25 },
+      5: { cellWidth: 20 },
+      6: { cellWidth: 30 },
+      7: { cellWidth: 20 }
+    }
+  });
+  
+  doc.save(`cancelaciones_${new Date().toISOString().slice(0,10)}.pdf`);
 };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            {/* Lado izquierdo: Título */}
             <div>
               <h1 className="text-2xl font-bold text-gray-800">⚙️ Panel de Administración</h1>
               <p className="text-gray-500 text-sm">
@@ -784,15 +878,12 @@ const downloadCancellationReportsCSV = () => {
               </p>
             </div>
 
-            {/* Lado derecho: Info usuario + Avatar + Campanita */}
             <div className="flex items-center space-x-4">
-              {/* Info del usuario (texto) */}
               <div className="hidden md:block text-right">
                 <p className="text-sm font-medium text-gray-800">{user?.firstName} {user?.lastName}</p>
                 <p className="text-xs text-gray-500">{getRoleLabel()}</p>
               </div>
 
-              {/* Avatar */}
               <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-bold shadow-md ${
                 isAdminSuper ? 'bg-gradient-to-br from-red-500 to-red-600' :
                 isAdminGeneral ? 'bg-gradient-to-br from-indigo-500 to-indigo-600' :
@@ -802,7 +893,6 @@ const downloadCancellationReportsCSV = () => {
                 {user?.firstName?.[0]}{user?.lastName?.[0]}
               </div>
 
-              {/* 🔔 Campanita de notificaciones */}
               <div className="relative notif-dropdown-container">
                 <button 
                   onClick={() => setShowNotifDropdown(!showNotifDropdown)}
@@ -819,7 +909,6 @@ const downloadCancellationReportsCSV = () => {
                   )}
                 </button>
 
-                {/* Dropdown de Notificaciones */}
                 {showNotifDropdown && (
                 <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
                   <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 flex justify-between items-center">
@@ -889,7 +978,7 @@ const downloadCancellationReportsCSV = () => {
           </div>
         </div>
       </div>
-      {/* Tabs de navegación - DINÁMICOS */}
+
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4">
           <nav className="flex space-x-8">
@@ -910,7 +999,6 @@ const downloadCancellationReportsCSV = () => {
         </div>
       </div>
 
-      {/* Contenido principal */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         {loading ? (
           <div className="flex items-center justify-center h-64">
@@ -918,10 +1006,8 @@ const downloadCancellationReportsCSV = () => {
           </div>
         ) : (
           <>
-            {/* 📊 DASHBOARD */}
             {activeTab === 'dashboard' && (
               <div className="space-y-6">
-                {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="bg-white p-6 rounded-xl shadow-sm border">
                     <p className="text-sm text-gray-600">Total Usuarios</p>
@@ -941,7 +1027,6 @@ const downloadCancellationReportsCSV = () => {
                   </div>
                 </div>
 
-                {/* Actividad Reciente */}
                 <div className="bg-white rounded-xl shadow-sm border">
                   <div className="p-4 border-b">
                     <h3 className="font-semibold text-gray-800">🕐 Actividad Reciente</h3>
@@ -965,10 +1050,8 @@ const downloadCancellationReportsCSV = () => {
               </div>
             )}
 
-            {/* 👥 USUARIOS */}
             {activeTab === 'users' && (
               <div className="space-y-4">
-                {/* Filtros */}
                 <div className="bg-white p-4 rounded-xl shadow-sm border flex items-center gap-4">
                   <label className="text-sm font-medium text-gray-700">Filtrar por rol:</label>
                   <select
@@ -992,7 +1075,6 @@ const downloadCancellationReportsCSV = () => {
                   </button>
                 </div>
 
-                {/* Tabla de Usuarios */}
                 <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                   <table className="w-full">
                     <thead className="bg-gray-50">
@@ -1017,7 +1099,6 @@ const downloadCancellationReportsCSV = () => {
                             {new Date(u.created_at).toLocaleDateString('es-ES')}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            {/* Solo super_admin puede eliminar admins */}
                             {(!['admin', 'super_admin', 'admin_general', 'admin_especialidad'].includes(u.role) || isAdminSuper) && (
                               <button
                                 onClick={() => handleDeleteUser(u.id, u.first_name)}
@@ -1035,10 +1116,8 @@ const downloadCancellationReportsCSV = () => {
               </div>
             )}
 
-            {/* 📅 CITAS */}
             {activeTab === 'appointments' && (
               <div className="space-y-4">
-                {/* Filtros */}
                 <div className="bg-white p-4 rounded-xl shadow-sm border flex items-center gap-4">
                   <label className="text-sm font-medium text-gray-700">Fecha:</label>
                   <input
@@ -1060,14 +1139,13 @@ const downloadCancellationReportsCSV = () => {
                     Actualizar
                   </button>
                   <button
-                    onClick={downloadAppointmentsCSV}
+                    onClick={downloadAppointmentsPDF}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
                   >
-                    ⬇️ CSV
+                    ⬇️ PDF
                   </button>
                 </div>
 
-                {/* Tabla de Citas */}
                 <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                   <table className="w-full">
                     <thead className="bg-gray-50">
@@ -1114,10 +1192,8 @@ const downloadCancellationReportsCSV = () => {
               </div>
             )}
 
-            {/* 📈 REPORTES */}
             {activeTab === 'reports' && (
             <div className="space-y-6">
-              {/* Sub-tabs */}
               <div className="bg-white border-b rounded-t-xl">
                 <nav className="flex space-x-8 px-4">
                   <button
@@ -1143,7 +1219,6 @@ const downloadCancellationReportsCSV = () => {
                 </nav>
               </div>
 
-              {/* Reporte por Doctor */}
               {reportsTabActive === 'by-doctor' && (
                 <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                   <div className="p-4 border-b flex justify-between items-center">
@@ -1153,10 +1228,10 @@ const downloadCancellationReportsCSV = () => {
                       Actualizar
                     </button>
                     <button
-                      onClick={downloadByDoctorCSV}
+                      onClick={downloadByDoctorPDF}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
                     >
-                      ⬇️ Descargar CSV
+                      ⬇️ Descargar PDF
                     </button>
                   </div>
                   {reportsLoading2 ? (
@@ -1202,10 +1277,8 @@ const downloadCancellationReportsCSV = () => {
                 </div>
               )}
 
-              {/* Reporte por Fecha */}
               {reportsTabActive === 'by-date' && (
                 <div className="space-y-4">
-                  {/* Filtros */}
                   <div className="bg-white p-4 rounded-xl shadow-sm border flex items-center gap-4 flex-wrap">
                     <div className="flex items-center gap-2">
                       <label className="text-sm font-medium text-gray-700">Desde:</label>
@@ -1224,10 +1297,10 @@ const downloadCancellationReportsCSV = () => {
                       Filtrar
                     </button>
                     <button
-                      onClick={downloadByDateCSV}
+                      onClick={downloadByDatePDF}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
                     >
-                      ⬇️ Descargar CSV
+                      ⬇️ Descargar PDF
                     </button>
                     <button onClick={() => { setReportDateStart(''); setReportDateEnd(''); loadReportsByDate(); }}
                       className="text-sm text-gray-500 hover:text-gray-700">
@@ -1290,7 +1363,6 @@ const downloadCancellationReportsCSV = () => {
             </div>
           )}
 
-            {/* ⚙️ CONFIGURACIÓN - SOLO SUPER ADMIN */}
             {activeTab === 'settings' && isAdminSuper && (
               <div className="space-y-6">
                 <div className="bg-white p-6 rounded-xl shadow-sm border">
@@ -1343,7 +1415,6 @@ const downloadCancellationReportsCSV = () => {
               </div>
             )}
 
-            {/* ⏳ PENDIENTES - SOLO SUPER ADMIN Y ADMIN GENERAL */}
             {activeTab === 'pending' && (isAdminSuper || isAdminGeneral || isAdminEspecialidad) && (
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Usuarios pendientes de aprobación</h3>
@@ -1391,10 +1462,9 @@ const downloadCancellationReportsCSV = () => {
                 )}
               </div>
             )}
-            {/* 🚫 CANCELACIONES - PARA TODOS LOS ADMINS */}
+
             {activeTab === 'cancellations' && (isAdminSuper || isAdminGeneral || isAdminEspecialidad) && (
               <div className="space-y-6">
-                {/* Header */}
                 <div className="bg-white p-4 rounded-xl shadow-sm border">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1415,7 +1485,6 @@ const downloadCancellationReportsCSV = () => {
                   </div>
                 </div>
 
-                {/* Tabs: Pendientes / Historial */}
                 <div className="bg-white border-b">
                   <nav className="flex space-x-8">
                     <button
@@ -1441,7 +1510,6 @@ const downloadCancellationReportsCSV = () => {
                   </nav>
                 </div>
 
-                {/* Contenido de Pendientes */}
                 {activeCancelTab === 'pending' && (
                   <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                     {cancellationRequests.filter(r => r.status === 'pending').length === 0 ? (
@@ -1520,7 +1588,6 @@ const downloadCancellationReportsCSV = () => {
                   </div>
                 )}
 
-                {/* Contenido de Historial */}
                 {activeCancelTab === 'history' && (
                   <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                     {cancellationRequests.filter(r => r.status !== 'pending').length === 0 ? (
@@ -1585,10 +1652,9 @@ const downloadCancellationReportsCSV = () => {
                 )}
               </div>
             )}
-            {/* 📋 REPORTE DE CANCELACIONES - SOLO SUPER ADMIN */}
+
             {activeTab === 'cancellation_reports' && isAdminSuper && (
               <div className="space-y-6">
-                {/* Header */}
                 <div className="bg-white p-4 rounded-xl shadow-sm border">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1604,15 +1670,14 @@ const downloadCancellationReportsCSV = () => {
                       Actualizar
                     </button>
                     <button
-                      onClick={downloadByDateCSV}
+                      onClick={downloadCancellationReportsPDF}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
                     >
-                      ⬇️ Descargar CSV
+                      ⬇️ Descargar PDF
                     </button>
                   </div>
                 </div>
 
-                {/* Tabla de Reportes */}
                 <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                   {reportsLoading ? (
                     <div className="p-8 text-center">
@@ -1690,7 +1755,6 @@ const downloadCancellationReportsCSV = () => {
           </>
         )}
 
-        {/* Modal para crear doctor -  */}
         {showDoctorForm && (isAdminSuper || isAdminGeneral || isAdminEspecialidad) && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <form onSubmit={handleCreateDoctor} className="bg-white p-6 rounded-xl shadow-lg w-96 max-h-[90vh] overflow-y-auto">
@@ -1700,7 +1764,6 @@ const downloadCancellationReportsCSV = () => {
               <input name="email" type="email" placeholder="Email" required className="w-full mb-2 p-2 border rounded" />
               <input name="password" type="password" placeholder="Contraseña temporal" required className="w-full mb-2 p-2 border rounded" />
               
-              {/* Selector de especialidad */}
               <select name="specialty" required className="w-full mb-2 p-2 border rounded">
                 <option value="">Seleccionar especialidad</option>
                 {specialties.map(spec => (
@@ -1717,7 +1780,7 @@ const downloadCancellationReportsCSV = () => {
           </div>
         )}
       </div>
-      {/* 🟢 MODAL DE APROBACIÓN CON NOTAS */}
+
       {showApproveModal && selectedRequest && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -1752,7 +1815,7 @@ const downloadCancellationReportsCSV = () => {
           </div>
         </div>
       )}
-      {/* 🔄 MODAL DE REASIGNACIÓN */}
+
       {showReassignModal && selectedRequest && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
@@ -1761,7 +1824,6 @@ const downloadCancellationReportsCSV = () => {
               <p className="text-blue-100 text-xs">Mover la cita a otro doctor o fecha</p>
             </div>
             <div className="p-6 space-y-4">
-              {/* Selector de Doctor */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nuevo Doctor *</label>
                 <select
@@ -1773,13 +1835,11 @@ const downloadCancellationReportsCSV = () => {
                   {availableDoctors.map(doc => (
                     <option key={doc.id} value={doc.id}>
                       Dr. {doc.first_name} {doc.last_name} 
-                      {/* Si tienes la especialidad en el objeto user, muéstrala aquí */}
                     </option>
                   ))}
                 </select>
               </div>
     
-              {/* Selector de Fecha/Hora */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nueva Fecha y Hora *</label>
                 <input
@@ -1791,7 +1851,6 @@ const downloadCancellationReportsCSV = () => {
                 <p className="text-xs text-gray-500 mt-1">El sistema verificará si el doctor está libre.</p>
               </div>
     
-              {/* Notas */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notas (Opcional)</label>
                 <textarea
@@ -1816,7 +1875,7 @@ const downloadCancellationReportsCSV = () => {
           </div>
         </div>
       )}
-      {/* 🔴 MODAL DE RECHAZO */}
+
       {showRejectModal && selectedRequest && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">

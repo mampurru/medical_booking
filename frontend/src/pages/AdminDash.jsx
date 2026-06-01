@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { io } from 'socket.io-client';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 const AdminDash = () => {
   const { user } = useAuth();
@@ -687,7 +687,8 @@ const downloadAppointmentsPDF = () => {
     app.reason || ''
   ]);
   
-  doc.autoTable({
+  // ✅ USAR FORMA FUNCIONAL: autoTable(doc, options)
+  autoTable(doc, {
     head: headers,
     body: rows,
     startY: 45,
@@ -705,7 +706,7 @@ const downloadAppointmentsPDF = () => {
     }
   });
   
-  const finalY = doc.lastAutoTable.finalY || 50;
+  const finalY = doc.lastAutoTable?.finalY || 50;
   doc.setFontSize(8);
   doc.text('Medical Booking System - Reporte generado automáticamente', 14, finalY + 10);
   
@@ -719,7 +720,6 @@ const downloadByDoctorPDF = () => {
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.text('Citas por Médico', 14, 20);
-  
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(`Generado: ${new Date().toLocaleString('es-ES')}`, 14, 30);
@@ -734,7 +734,7 @@ const downloadByDoctorPDF = () => {
     row.total_citas > 0 ? `${Math.round((row.completadas / row.total_citas) * 100)}%` : '0%'
   ]);
   
-  doc.autoTable({
+  autoTable(doc, {
     head: headers,
     body: rows,
     startY: 40,
@@ -772,7 +772,6 @@ const downloadByDatePDF = () => {
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.text('Reporte de Citas por Fecha', 14, 20);
-  
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(`Generado: ${new Date().toLocaleString('es-ES')}`, 14, 30);
@@ -794,7 +793,7 @@ const downloadByDatePDF = () => {
     ];
   });
   
-  doc.autoTable({
+  autoTable(doc, {
     head: headers,
     body: rows,
     startY: 45,
@@ -821,7 +820,6 @@ const downloadCancellationReportsPDF = () => {
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.text('Reporte de Cancelaciones Aprobadas', 14, 20);
-  
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(`Generado: ${new Date().toLocaleString('es-ES')}`, 14, 30);
@@ -842,7 +840,7 @@ const downloadCancellationReportsPDF = () => {
     new Date(report.created_at).toLocaleDateString('es-ES')
   ]);
   
-  doc.autoTable({
+  autoTable(doc, {
     head: headers,
     body: rows,
     startY: 40,

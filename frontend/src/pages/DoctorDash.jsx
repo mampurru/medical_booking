@@ -160,21 +160,31 @@ const DoctorDash = () => {
         </button>
        </div>
 
-      {/* Estadísticas rápidas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-          <p className="text-sm text-gray-600">Citas Hoy</p>
-          <p className="text-2xl font-bold text-blue-600">--</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-          <p className="text-sm text-gray-600">Pendientes</p>
-          <p className="text-2xl font-bold text-yellow-600">--</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-          <p className="text-sm text-gray-600">Completadas</p>
-          <p className="text-2xl font-bold text-green-600">--</p>
-        </div>
-      </div>
+      
+      {/* Calcular estadísticas desde appointments */}
+      {(() => {
+        const today = new Date().toISOString().split('T')[0];
+        const todayAppointments = appointments.filter(apt => apt.start_time.startsWith(today));
+        const pendingAppointments = appointments.filter(apt => apt.status === 'scheduled');
+        const completedAppointments = appointments.filter(apt => apt.status === 'completed');
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+              <p className="text-sm text-gray-600">Citas Hoy</p>
+              <p className="text-2xl font-bold text-blue-600">{todayAppointments.length}</p>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+              <p className="text-sm text-gray-600">Pendientes</p>
+              <p className="text-2xl font-bold text-yellow-600">{pendingAppointments.length}</p>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+              <p className="text-sm text-gray-600">Completadas</p>
+              <p className="text-2xl font-bold text-green-600">{completedAppointments.length}</p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Calendario */}
       <Calendar

@@ -217,32 +217,72 @@ router.delete('/users/:id/reject', async (req, res) => {
 });
 
 // Listar usuarios pendientes
+// router.get('/users/pending',
+//   verifyTokenMiddleware,
+//   async (req, res) => {
+//     try {
+//       const userRole = req.user.role;
+//       const userSpecialtyId = req.user.specialty_id;
+
+//       let query = `
+//         SELECT u.*, d.specialty_id, d.license_number, s.name as specialty_name
+//         FROM users u
+//         LEFT JOIN doctors d ON u.id = d.user_id
+//         LEFT JOIN specialties s ON d.specialty_id = s.id
+//         WHERE u.status = 'pending' AND u.role = 'doctor'
+//       `;
+
+//       const queryParams = [];
+
+//       if (userRole === 'admin_general') {
+//         query += ' AND (d.specialty_id IS NULL OR d.specialty_id IS NULL)';
+//       } else if (userRole === 'admin_especialidad') {
+//         if (userSpecialtyId === null || userSpecialtyId === undefined) {
+//           query += ' AND d.specialty_id IS NOT NULL';
+//         } else {
+//           query += ' AND d.specialty_id = ?';
+//           queryParams.push(userSpecialtyId);
+//         }
+//       }
+
+//       query += ' ORDER BY u.created_at DESC';
+
+//       const [users] = await pool.query(query, queryParams);
+
+//       res.json({ success: true, users });
+//     } catch (error) {
+//       console.error('Error obteniendo usuarios pendientes:', error);
+//       res.status(500).json({ success: false, message: 'Error del servidor' });
+//     }
+//   }
+// );
+// Listar usuarios pendientes (TODOS: pacientes y doctores)
 router.get('/users/pending',
-  verifyTokenMiddleware,
-  async (req, res) => {
+  async (req, res) => {  // ✅ Eliminar verifyTokenMiddleware duplicado
     try {
       const userRole = req.user.role;
       const userSpecialtyId = req.user.specialty_id;
 
       let query = `
-        SELECT u.*, d.specialty_id, d.license_number, s.name as specialty_name
+        SELECT 
+          u.id, u.email, u.role, u.first_name, u.last_name, 
+          u.phone, u.identification_number, u.created_at, u.status,
+          d.specialty_id, d.license_number, 
+          s.name as specialty_name,
+          p.date_of_birth
         FROM users u
         LEFT JOIN doctors d ON u.id = d.user_id
+        LEFT JOIN patients p ON u.id = p.user_id
         LEFT JOIN specialties s ON d.specialty_id = s.id
-        WHERE u.status = 'pending' AND u.role = 'doctor'
+        WHERE u.status = 'pending'
       `;
 
       const queryParams = [];
 
-      if (userRole === 'admin_general') {
-        query += ' AND (d.specialty_id IS NULL OR d.specialty_id IS NULL)';
-      } else if (userRole === 'admin_especialidad') {
-        if (userSpecialtyId === null || userSpecialtyId === undefined) {
-          query += ' AND d.specialty_id IS NOT NULL';
-        } else {
-          query += ' AND d.specialty_id = ?';
-          queryParams.push(userSpecialtyId);
-        }
+      // Filtrar por rol según el tipo de admin
+      if (userRole === 'admin_especialidad' && userSpecialtyId) {
+        query += ' AND (u.role != "doctor" OR d.specialty_id = ?)';
+        queryParams.push(userSpecialtyId);
       }
 
       query += ' ORDER BY u.created_at DESC';

@@ -351,103 +351,164 @@ router.post('/create-admin',
 );
 
 // ✅ Aprobar solicitud de cancelación (CORREGIDO)
-router.post('/cancellation-requests/:id/approve',
-  verifyTokenMiddleware,
-  authorize('super_admin', 'admin_general', 'admin_especialidad'),
-  async (req, res) => {
-    const { id } = req.params;
-    const { admin_notes } = req.body;
+// router.post('/cancellation-requests/:id/approve',
+//   verifyTokenMiddleware,
+//   authorize('super_admin', 'admin_general', 'admin_especialidad'),
+//   async (req, res) => {
+//     const { id } = req.params;
+//     const { admin_notes } = req.body;
 
-    try {
-      const [request] = await pool.query(
-        'SELECT * FROM cancellation_requests WHERE id = ? AND status = "pending"', 
-        [id]
-      );
-      if (request.length === 0) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Solicitud no encontrada o ya procesada' 
-        });
-      }
+//     try {
+//       const [request] = await pool.query(
+//         'SELECT * FROM cancellation_requests WHERE id = ? AND status = "pending"', 
+//         [id]
+//       );
+//       if (request.length === 0) {
+//         return res.status(404).json({ 
+//           success: false, 
+//           message: 'Solicitud no encontrada o ya procesada' 
+//         });
+//       }
 
-      const cancellation = request[0];
+//       const cancellation = request[0];
 
-      const [adminInfo] = await pool.query(
-        'SELECT first_name, last_name, role FROM users WHERE id = ?',
-        [req.user.id]
-      );
+//       const [adminInfo] = await pool.query(
+//         'SELECT first_name, last_name, role FROM users WHERE id = ?',
+//         [req.user.id]
+//       );
 
-      await pool.query(
-        `UPDATE cancellation_requests 
-         SET status = "approved", reviewed_by = ?, reviewed_at = NOW(), admin_notes = ? 
-         WHERE id = ?`,
-        [req.user.id, admin_notes || '', id]
-      );
+//       await pool.query(
+//         `UPDATE cancellation_requests 
+//          SET status = "approved", reviewed_by = ?, reviewed_at = NOW(), admin_notes = ? 
+//          WHERE id = ?`,
+//         [req.user.id, admin_notes || '', id]
+//       );
 
-      await pool.query(
-        'UPDATE appointments SET status = "cancelled" WHERE id = ?', 
-        [cancellation.appointment_id]
-      );
+//       await pool.query(
+//         'UPDATE appointments SET status = "cancelled" WHERE id = ?', 
+//         [cancellation.appointment_id]
+//       );
 
-      await pool.query(
-        `INSERT INTO cancellation_audit_log 
-         (request_id, appointment_id, doctor_id, approved_by, approved_by_role, 
-          admin_notes, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-        [
-          id, 
-          cancellation.appointment_id, 
-          cancellation.doctor_id, 
-          req.user.id,
-          adminInfo[0]?.role || 'unknown',
-          admin_notes || ''
-        ]
-      );
+//       await pool.query(
+//         `INSERT INTO cancellation_audit_log 
+//          (request_id, appointment_id, doctor_id, approved_by, approved_by_role, 
+//           admin_notes, created_at)
+//          VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+//         [
+//           id, 
+//           cancellation.appointment_id, 
+//           cancellation.doctor_id, 
+//           req.user.id,
+//           adminInfo[0]?.role || 'unknown',
+//           admin_notes || ''
+//         ]
+//       );
 
-      // 📧 Enviar email al paciente (CORREGIDO: JOIN correcto)
-      try {
-        const [appointmentData] = await pool.query(`
-          SELECT 
-            a.id, a.start_time, a.reason,
-            u.first_name as patient_first_name,  -- ✅ CORREGIDO: de users
-            u.last_name as patient_last_name,    -- ✅ CORREGIDO
-            u.email as patient_email,            -- ✅ CORREGIDO
-            du.first_name as doctor_first_name,
-            du.last_name as doctor_last_name
-          FROM appointments a
-          JOIN patients p ON a.patient_id = p.id  -- appointments → patients
-          JOIN users u ON p.user_id = u.id         -- patients → users (aquí está el nombre)
-          JOIN doctors doc ON a.doctor_id = doc.id
-          JOIN users du ON doc.user_id = du.id
-          WHERE a.id = ?
-        `, [cancellation.appointment_id]);
+//       // 📧 Enviar email al paciente (CORREGIDO: JOIN correcto)
+//       try {
+//         const [appointmentData] = await pool.query(`
+//           SELECT 
+//             a.id, a.start_time, a.reason,
+//             u.first_name as patient_first_name,  -- ✅ CORREGIDO: de users
+//             u.last_name as patient_last_name,    -- ✅ CORREGIDO
+//             u.email as patient_email,            -- ✅ CORREGIDO
+//             du.first_name as doctor_first_name,
+//             du.last_name as doctor_last_name
+//           FROM appointments a
+//           JOIN patients p ON a.patient_id = p.id  -- appointments → patients
+//           JOIN users u ON p.user_id = u.id         -- patients → users (aquí está el nombre)
+//           JOIN doctors doc ON a.doctor_id = doc.id
+//           JOIN users du ON doc.user_id = du.id
+//           WHERE a.id = ?
+//         `, [cancellation.appointment_id]);
 
-        if (appointmentData.length > 0) {
-          const appt = appointmentData[0];
+//         if (appointmentData.length > 0) {
+//           const appt = appointmentData[0];
           
-          await sendCancellationApproved(
-            {
-              id: appt.id,
-              start_time: appt.start_time,
-              reason: appt.reason,
-              doctor_name: `${appt.doctor_first_name} ${appt.doctor_last_name}`.trim()
-            },
-            appt.patient_email,
-            `${appt.patient_first_name} ${appt.patient_last_name}`.trim(),
-            admin_notes || ''
-          );
+//           await sendCancellationApproved(
+//             {
+//               id: appt.id,
+//               start_time: appt.start_time,
+//               reason: appt.reason,
+//               doctor_name: `${appt.doctor_first_name} ${appt.doctor_last_name}`.trim()
+//             },
+//             appt.patient_email,
+//             `${appt.patient_first_name} ${appt.patient_last_name}`.trim(),
+//             admin_notes || ''
+//           );
+//         }
+//       } catch (emailError) {
+//         console.error('⚠️ Error enviando email de aprobación:', emailError.message);
+//       }
+
+//       res.json({
+//         success: true,
+//         message: 'Cancelación aprobada. La cita ha sido marcada como cancelada.'
+//       });
+
+//     } catch (error) {
+//       console.error('Error aprobando cancelación:', error);
+//       res.status(500).json({ success: false, message: 'Error del servidor' });
+//     }
+//   }
+// );
+// Listar solicitudes de cancelación
+router.get('/cancellation-requests',
+  verifyTokenMiddleware,
+  async (req, res) => {
+    try {
+      const userRole = req.user.role;
+      const userSpecialtyId = req.user.specialty_id;
+
+      let query = `
+        SELECT DISTINCT 
+          cr.id,
+          cr.appointment_id,
+          cr.doctor_id,
+          cr.doctor_user_id,
+          cr.cancellation_type,
+          cr.reason,
+          cr.status,
+          cr.requested_at,
+          cr.admin_notes,
+          cr.reviewed_at,
+          cr.reviewed_by,
+          a.start_time,
+          du.first_name as doctor_first_name,
+          du.last_name as doctor_last_name,
+          u.first_name as patient_first_name,  -- ✅ CORREGIDO
+          u.last_name as patient_last_name,    -- ✅ CORREGIDO
+          d.specialty_id as doctor_specialty_id
+        FROM cancellation_requests cr
+        JOIN appointments a ON cr.appointment_id = a.id
+        JOIN doctors d ON cr.doctor_id = d.id
+        JOIN users du ON d.user_id = du.id
+        JOIN patients p ON a.patient_id = p.id  -- ✅ AGREGAR: patients
+        JOIN users u ON p.user_id = u.id         -- ✅ CORREGIDO: users desde patients
+      `;
+
+      const whereClauses = ['cr.status IN (?, ?)'];
+      const queryParams = ['pending', 'approved', 'rejected'];
+
+      if (userRole === 'admin_general') {
+        whereClauses.push('d.specialty_id IS NULL');
+      } else if (userRole === 'admin_especialidad') {
+        if (userSpecialtyId === null || userSpecialtyId === undefined) {
+          whereClauses.push('d.specialty_id IS NOT NULL');
+        } else {
+          whereClauses.push('d.specialty_id = ?');
+          queryParams.push(userSpecialtyId);
         }
-      } catch (emailError) {
-        console.error('⚠️ Error enviando email de aprobación:', emailError.message);
       }
 
-      res.json({
-        success: true,
-        message: 'Cancelación aprobada. La cita ha sido marcada como cancelada.'
-      });
+      query += ' WHERE ' + whereClauses.join(' AND ');
+      query += ' ORDER BY cr.requested_at DESC';
 
+      const [requests] = await pool.query(query, queryParams);
+
+      res.json({ success: true, requests });
     } catch (error) {
-      console.error('Error aprobando cancelación:', error);
+      console.error('Error obteniendo solicitudes:', error);
       res.status(500).json({ success: false, message: 'Error del servidor' });
     }
   }
